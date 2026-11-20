@@ -9,3 +9,4 @@ import DuckProtocol
 public struct MicroduckIntentsPackage: AppIntentsPackage {
   public init() {}
 }
+

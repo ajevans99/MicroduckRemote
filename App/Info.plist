@@ -22,7 +22,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.pollenrobotics.microduckremote.oauth</string>
+			<string>dev.ajevans.microduckremote.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>microduckremote</string>

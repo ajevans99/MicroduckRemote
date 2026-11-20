@@ -1,12 +1,12 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 
 import PackageDescription
 
 let package = Package(
   name: "MicroduckRemotePackage",
   platforms: [
-    .iOS(.v18),
-    .macOS(.v15),
+    .iOS("27.3"),
+    .macOS("27.3"),
   ],
   products: [
     .library(name: "AppFeature", targets: ["AppFeature"]),
@@ -125,6 +125,14 @@ let package = Package(
       name: "DuckDependenciesTests",
       dependencies: [
         "DuckDependencies",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .testTarget(
+      name: "DuckIntentsTests",
+      dependencies: [
+        "DuckIntents",
         .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]

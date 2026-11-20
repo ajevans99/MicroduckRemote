@@ -1,8 +1,8 @@
 name: MicroduckRemote
 options:
-  bundleIdPrefix: com.pollenrobotics
+  bundleIdPrefix: dev.ajevans
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "27.3"
   xcodeVersion: "16.0"
 packages:
   MicroduckRemotePackage:
@@ -15,7 +15,9 @@ targets:
       - path: App
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.pollenrobotics.microduckremote
+        PRODUCT_BUNDLE_IDENTIFIER: dev.ajevans.microduckremote
+        DEVELOPMENT_TEAM: 3Z68NFJBHS
+        CODE_SIGN_STYLE: Automatic
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -44,9 +46,14 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleURLTypes:
-          - CFBundleURLName: com.pollenrobotics.microduckremote.oauth
+          - CFBundleURLName: dev.ajevans.microduckremote.oauth
             CFBundleURLSchemes:
               - microduckremote
+    entitlements:
+      path: MicroduckRemote.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.dev.ajevans.microduckremote
     dependencies:
       - package: MicroduckRemotePackage
         product: AppFeature
