@@ -12,6 +12,7 @@ let package = Package(
     .library(name: "AppFeature", targets: ["AppFeature"]),
     .library(name: "CockpitFeature", targets: ["CockpitFeature"]),
     .library(name: "DuckDependencies", targets: ["DuckDependencies"]),
+    .library(name: "DuckIntents", targets: ["DuckIntents"]),
     .library(name: "DuckProtocol", targets: ["DuckProtocol"]),
     .library(name: "DuckWebRTC", targets: ["DuckWebRTC"]),
     .library(name: "TelemetryFeature", targets: ["TelemetryFeature"]),
@@ -43,6 +44,14 @@ let package = Package(
         .product(name: "DependenciesMacros", package: "swift-dependencies"),
         .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
         .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
+      ]
+    ),
+    .target(
+      name: "DuckIntents",
+      dependencies: [
+        "DuckDependencies",
+        "DuckProtocol",
+        .product(name: "Dependencies", package: "swift-dependencies"),
       ]
     ),
     .target(
@@ -110,6 +119,14 @@ let package = Package(
       dependencies: [
         "DuckProtocol",
         .product(name: "CustomDump", package: "swift-custom-dump"),
+      ]
+    ),
+    .testTarget(
+      name: "DuckDependenciesTests",
+      dependencies: [
+        "DuckDependencies",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]
     ),
     .testTarget(

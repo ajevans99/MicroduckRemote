@@ -326,6 +326,7 @@ public struct DuckSessionClient: Sendable {
   public var playSound: @Sendable (SoundTag, Bool?) async -> Void
   public var setAutonomous: @Sendable (Bool) async throws -> Void
   public var setFlashlight: @Sendable (Bool) async throws -> Void
+  public var setFlashlightColor: @Sendable (Bool, String) async throws -> Void
   public var setLaserTrack: @Sendable (Bool) async throws -> Void
   public var setSoccer: @Sendable (Bool) async throws -> Void
   public var subscribeTof: @Sendable () async -> Void
@@ -338,6 +339,10 @@ public struct DuckSessionClient: Sendable {
     @Sendable (TrickInstallStage) -> Void
   ) async throws -> String
   public var removeSkill: @Sendable (String) async throws -> Void
+  public var ensureConnected: @Sendable (Duration) async throws -> DuckIdentity
+  public var setForegroundActive: @Sendable (Bool) async -> Void
+  public var performMoveStep: @Sendable (DuckMoveStepRequest) async throws -> DuckMoveStepResult
+  public var capturePhoto: @Sendable () async throws -> DuckCapturedFrame
 
   public init(
     currentSnapshot: @escaping @Sendable () async -> DuckSessionSnapshot,
@@ -357,6 +362,7 @@ public struct DuckSessionClient: Sendable {
     playSound: @escaping @Sendable (SoundTag, Bool?) async -> Void,
     setAutonomous: @escaping @Sendable (Bool) async throws -> Void,
     setFlashlight: @escaping @Sendable (Bool) async throws -> Void,
+    setFlashlightColor: @escaping @Sendable (Bool, String) async throws -> Void = { _, _ in },
     setLaserTrack: @escaping @Sendable (Bool) async throws -> Void,
     setSoccer: @escaping @Sendable (Bool) async throws -> Void,
     subscribeTof: @escaping @Sendable () async -> Void,
@@ -368,7 +374,22 @@ public struct DuckSessionClient: Sendable {
       Double,
       @Sendable (TrickInstallStage) -> Void
     ) async throws -> String,
-    removeSkill: @escaping @Sendable (String) async throws -> Void
+    removeSkill: @escaping @Sendable (String) async throws -> Void,
+    ensureConnected: @escaping @Sendable (Duration) async throws -> DuckIdentity = { _ in
+      DuckIdentity(peerID: "sim-duck-a", name: "duck-eb55", isSimulated: true)
+    },
+    setForegroundActive: @escaping @Sendable (Bool) async -> Void = { _ in },
+    performMoveStep: @escaping @Sendable (DuckMoveStepRequest) async throws -> DuckMoveStepResult = { req in
+      DuckMoveStepResult(
+        appliedTwist: req.clampedTwist,
+        elapsedSeconds: req.clampedDurationSeconds,
+        pulsesSent: max(1, Int((req.clampedDurationSeconds * Double(DuckConstants.intentHz)).rounded())),
+        stopReason: .completed
+      )
+    },
+    capturePhoto: @escaping @Sendable () async throws -> DuckCapturedFrame = {
+      DuckCapturedFrame(jpegData: Data([0xFF, 0xD8, 0xFF, 0xD9]), width: 360, height: 640, capturedAt: Date(timeIntervalSince1970: 1_795_150_000))
+    }
   ) {
     self.currentSnapshot = currentSnapshot
     self.snapshots = snapshots
@@ -387,6 +408,7 @@ public struct DuckSessionClient: Sendable {
     self.playSound = playSound
     self.setAutonomous = setAutonomous
     self.setFlashlight = setFlashlight
+    self.setFlashlightColor = setFlashlightColor
     self.setLaserTrack = setLaserTrack
     self.setSoccer = setSoccer
     self.subscribeTof = subscribeTof
@@ -395,6 +417,10 @@ public struct DuckSessionClient: Sendable {
     self.refreshSkills = refreshSkills
     self.installPolicy = installPolicy
     self.removeSkill = removeSkill
+    self.ensureConnected = ensureConnected
+    self.setForegroundActive = setForegroundActive
+    self.performMoveStep = performMoveStep
+    self.capturePhoto = capturePhoto
   }
 }
 

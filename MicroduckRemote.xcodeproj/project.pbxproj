@@ -9,8 +9,9 @@
 /* Begin PBXBuildFile section */
 		37B9DF43345381FD98FF881C /* AppFeature in Frameworks */ = {isa = PBXBuildFile; productRef = C2F2C7143789B46163BD7FD3 /* AppFeature */; };
 		5B1E8F07C391D7E8738C5BA9 /* MicroduckRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */; };
-		768C408DC026B014304AAC8B /* DuckWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 984C0160F44D455D8F14E49C /* DuckWebRTC */; };
+		768C408DC026B014304AAC8B /* DuckIntents in Frameworks */ = {isa = PBXBuildFile; productRef = BE1246E34A1A710C3A00B380 /* DuckIntents */; };
 		B9614D6F312229753E1500AF /* DuckDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 1ABDF28BFCDF93D4871A42DD /* DuckDependencies */; };
+		E199C00CEE5A9326C35E46EB /* DuckWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 984C0160F44D455D8F14E49C /* DuckWebRTC */; };
 		E82B518272AE4575D209854D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C93ABB8EC564A6388535B3A /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -29,7 +30,8 @@
 			files = (
 				37B9DF43345381FD98FF881C /* AppFeature in Frameworks */,
 				B9614D6F312229753E1500AF /* DuckDependencies in Frameworks */,
-				768C408DC026B014304AAC8B /* DuckWebRTC in Frameworks */,
+				768C408DC026B014304AAC8B /* DuckIntents in Frameworks */,
+				E199C00CEE5A9326C35E46EB /* DuckWebRTC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 			packageProductDependencies = (
 				C2F2C7143789B46163BD7FD3 /* AppFeature */,
 				1ABDF28BFCDF93D4871A42DD /* DuckDependencies */,
+				BE1246E34A1A710C3A00B380 /* DuckIntents */,
 				984C0160F44D455D8F14E49C /* DuckWebRTC */,
 			);
 			productName = MicroduckRemote;
@@ -361,6 +364,10 @@
 		984C0160F44D455D8F14E49C /* DuckWebRTC */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DuckWebRTC;
+		};
+		BE1246E34A1A710C3A00B380 /* DuckIntents */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DuckIntents;
 		};
 		C2F2C7143789B46163BD7FD3 /* AppFeature */ = {
 			isa = XCSwiftPackageProductDependency;

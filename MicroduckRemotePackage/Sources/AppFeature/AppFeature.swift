@@ -189,6 +189,8 @@ public final class AppModel {
   }
 
   @ObservationIgnored @Dependency(\.duckSession) var duckSession
+  @ObservationIgnored @Dependency(\.connectionPreferences) var connectionPreferences
+  @ObservationIgnored @Dependency(\.huggingFaceAuth) var huggingFaceAuth
 
   public var selectedTab: Tab = .cockpit
   public var cockpitModel = CockpitModel()
@@ -207,9 +209,24 @@ public final class AppModel {
     guard !didAutoConnect else { return }
     didAutoConnect = true
     let current = await duckSession.currentSnapshot()
-    if !current.phase.isConnected {
-      await duckSession.connect(.localSimulator(url: DuckConstants.defaultLocalSignallingURL))
+    if !current.phase.isConnected, !current.phase.is(\.connecting) {
+      #if targetEnvironment(simulator)
+      let runningInSimulator = true
+      #else
+      let runningInSimulator = false
+      #endif
+      if let target = try? ConnectionPreferencesClient.resolveColdStartTarget(
+        preference: connectionPreferences.loadPreference(),
+        huggingFaceSession: huggingFaceAuth.loadSession(),
+        isSimulator: runningInSimulator
+      ) {
+        await duckSession.connect(target)
+      }
     }
+  }
+
+  public func scenePhaseChanged(isActive: Bool) async {
+    await duckSession.setForegroundActive(isActive)
   }
 
   public func presentConnectionSheet() {
@@ -221,6 +238,7 @@ public final class AppModel {
 
 public struct RootAppView: View {
   @Bindable var model: AppModel
+  @Environment(\.scenePhase) private var scenePhase
 
   public init(model: AppModel) {
     self.model = model
@@ -240,6 +258,11 @@ public struct RootAppView: View {
     }
     .sheet(item: $model.connectionSheet) { sheetModel in
       ConnectionSheetView(model: sheetModel)
+    }
+    .onChange(of: scenePhase, initial: true) { _, newPhase in
+      Task {
+        await model.scenePhaseChanged(isActive: newPhase == .active)
+      }
     }
     .task {
       await model.task()

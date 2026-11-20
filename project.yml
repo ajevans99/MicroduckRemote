@@ -53,6 +53,8 @@ targets:
       - package: MicroduckRemotePackage
         product: DuckDependencies
       - package: MicroduckRemotePackage
+        product: DuckIntents
+      - package: MicroduckRemotePackage
         product: DuckWebRTC
 schemes:
   MicroduckRemote:

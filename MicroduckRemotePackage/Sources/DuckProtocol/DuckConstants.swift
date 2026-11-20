@@ -16,6 +16,10 @@ public enum DuckConstants {
   public static let intentHz = 10
   public static let defaultHoldSeconds = 3.0
   public static let jointDeviationFullScaleRadians = 0.20
+  public static let appGroupID = "group.com.pollenrobotics.microduckremote"
+  public static let headlessIdleTimeoutSeconds = 30.0
+  public static let maxStepDurationSeconds = 10.0
+  public static let defaultMinObstacleDistanceMm = 200
 
   public static let builtInSkills: [String] = [
     "roulade",

@@ -25,6 +25,9 @@ final class LiveDuckSessionEngine: NSObject {
   private var sessionID: String?
   private var startingSession = false
   private var wantedConnection = false
+  private var isSessionBootstrapReady = false
+  private var isForegroundActive = false
+  private var headlessIdleTask: Task<Void, Never>?
   private var mintedRelayServers: [RTCIceServer] = []
 
   private var nextRequestID: UInt64 = 1
@@ -75,6 +78,95 @@ final class LiveDuckSessionEngine: NSObject {
     for continuation in subscribers.values {
       continuation.yield(current)
     }
+    @Dependency(\.duckSharedState) var duckSharedState
+    @Dependency(\.date.now) var now
+    duckSharedState.publishSummary(DuckSharedSummary(snapshot: current, updatedAt: now))
+  }
+
+  func setForegroundActive(_ active: Bool) {
+    isForegroundActive = active
+    if active {
+      headlessIdleTask?.cancel()
+      headlessIdleTask = nil
+    } else if wantedConnection || snapshot.controlOpen {
+      armHeadlessIdleDisconnect()
+    }
+  }
+
+  private func armHeadlessIdleDisconnect() {
+    guard !isForegroundActive else { return }
+    headlessIdleTask?.cancel()
+    headlessIdleTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(DuckConstants.headlessIdleTimeoutSeconds))
+      guard let self, !Task.isCancelled, !self.isForegroundActive else { return }
+      self.appendLog(.info, "Releasing background WebRTC slot after idle timeout.")
+      await self.disconnect()
+    }
+  }
+
+  private func persistConnectionPreference(for target: ConnectionTarget) {
+    @Dependency(\.connectionPreferences) var connectionPreferences
+    switch target {
+    case let .localSimulator(url):
+      connectionPreferences.savePreference(.localSimulator(url: url))
+    case let .rendezvous(serverURL, _, _, preferredPeerID):
+      connectionPreferences.savePreference(
+        .rendezvous(serverURL: serverURL, preferredPeerID: preferredPeerID)
+      )
+    }
+  }
+
+  func ensureConnected(timeout: Duration) async throws -> DuckIdentity {
+    armHeadlessIdleDisconnect()
+
+    if snapshot.controlOpen, isSessionBootstrapReady, let identity = snapshot.phase.connected {
+      return identity
+    }
+
+    if !wantedConnection || snapshot.phase.is(\.disconnected) || snapshot.phase.is(\.failed) {
+      @Dependency(\.connectionPreferences) var connectionPreferences
+      @Dependency(\.huggingFaceAuth) var huggingFaceAuth
+      #if targetEnvironment(simulator)
+      let runningInSimulator = true
+      #else
+      let runningInSimulator = false
+      #endif
+      let target = try ConnectionPreferencesClient.resolveColdStartTarget(
+        preference: connectionPreferences.loadPreference(),
+        huggingFaceSession: huggingFaceAuth.loadSession(),
+        isSimulator: runningInSimulator
+      )
+      await connect(target: target)
+    }
+
+    return try await withThrowingTaskGroup(of: DuckIdentity.self) { group in
+      group.addTask {
+        try await self.awaitBootstrapIdentity()
+      }
+      group.addTask {
+        try await Task.sleep(for: timeout)
+        throw DuckSessionError.connectionTimedOut
+      }
+      guard let identity = try await group.next() else {
+        throw DuckSessionError.connectionTimedOut
+      }
+      group.cancelAll()
+      self.armHeadlessIdleDisconnect()
+      return identity
+    }
+  }
+
+  private func awaitBootstrapIdentity() async throws -> DuckIdentity {
+    let stream = snapshotsStream()
+    for await updated in stream {
+      if updated.controlOpen, isSessionBootstrapReady, let identity = updated.phase.connected {
+        return identity
+      }
+      if case let .failed(reason) = updated.phase {
+        throw DuckSessionError.connectionFailed(reason)
+      }
+    }
+    throw DuckSessionError.connectionTimedOut
   }
 
   private func appendLog(_ level: RpcLogEntry.Level, _ message: String) {
@@ -87,10 +179,12 @@ final class LiveDuckSessionEngine: NSObject {
 
   func connect(target: ConnectionTarget) async {
     await teardown(resetTarget: false)
+    persistConnectionPreference(for: target)
     snapshot.target = target
     snapshot.phase = .connecting(step: "Opening signalling…")
     snapshot.apiSkewWarning = nil
     wantedConnection = true
+    armHeadlessIdleDisconnect()
     broadcast()
 
     switch target {
@@ -102,6 +196,8 @@ final class LiveDuckSessionEngine: NSObject {
   }
 
   func disconnect() async {
+    headlessIdleTask?.cancel()
+    headlessIdleTask = nil
     if let sessionID {
       await sendSignalling(.endSession(sessionId: sessionID))
     }
@@ -117,12 +213,14 @@ final class LiveDuckSessionEngine: NSObject {
       closePeerConnection()
     }
     if case let .rendezvous(serverURL, token, username, _) = snapshot.target {
-      snapshot.target = .rendezvous(
+      let updatedTarget = ConnectionTarget.rendezvous(
         serverURL: serverURL,
         token: token,
         username: username,
         preferredPeerID: peerID
       )
+      snapshot.target = updatedTarget
+      persistConnectionPreference(for: updatedTarget)
     }
     startingSession = true
     snapshot.phase = .connecting(step: "Requesting duck session…")
@@ -133,6 +231,7 @@ final class LiveDuckSessionEngine: NSObject {
   private func teardown(resetTarget: Bool) async {
     wantedConnection = false
     startingSession = false
+    isSessionBootstrapReady = false
     sessionID = nil
 
     receiveLoopTask?.cancel()
@@ -161,6 +260,7 @@ final class LiveDuckSessionEngine: NSObject {
     peerConnection?.close()
     peerConnection = nil
     VideoTrackRegistry.shared.currentTrack = nil
+    isSessionBootstrapReady = false
     snapshot.controlOpen = false
     snapshot.hasVideoTrack = false
     failAllPendingCalls(reason: "Control channel closed")
@@ -525,6 +625,7 @@ final class LiveDuckSessionEngine: NSObject {
 
   private func onControlChannelOpened() async {
     snapshot.controlOpen = true
+    isSessionBootstrapReady = false
     let chosenProducer = snapshot.availableDucks.first
     snapshot.phase = .connected(
       DuckIdentity(
@@ -544,7 +645,9 @@ final class LiveDuckSessionEngine: NSObject {
     _ = try? await callRPC("robot.subscribe", params: RobotSubscribeParams(hz: 10), quiet: true) as IntentResult
     await refreshSkillsAndPolicies()
     await pollHealthAndMode()
+    isSessionBootstrapReady = snapshot.controlOpen
     startTelemetryLoops()
+    armHeadlessIdleDisconnect()
     broadcast()
   }
 
@@ -684,6 +787,7 @@ final class LiveDuckSessionEngine: NSObject {
 
   func sendFireAndForget<Params: Encodable & Sendable>(_ method: String, params: Params) {
     guard let channel = controlChannel, channel.readyState == .open else { return }
+    armHeadlessIdleDisconnect()
     let id = nextRequestID
     nextRequestID += 1
     quietIDs.insert(id)
@@ -701,6 +805,9 @@ final class LiveDuckSessionEngine: NSObject {
   ) async throws -> ResultType {
     guard let channel = controlChannel, channel.readyState == .open else {
       throw RpcErrorPayload(code: -32000, message: "Not connected to duck control channel.")
+    }
+    if !quiet {
+      armHeadlessIdleDisconnect()
     }
     let id = nextRequestID
     nextRequestID += 1
@@ -1045,6 +1152,14 @@ extension DuckSessionClient: DependencyKey {
         )
         try engine.ensureIntentAccepted(res)
       },
+      setFlashlightColor: { @MainActor on, color in
+        let engine = LiveDuckSessionEngine.shared
+        let res: IntentResult = try await engine.callRPC(
+          "robot.flashlight",
+          params: RobotFlashlightParams(on: on, color: color)
+        )
+        try engine.ensureIntentAccepted(res)
+      },
       setLaserTrack: { @MainActor on in
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC(
@@ -1086,6 +1201,38 @@ extension DuckSessionClient: DependencyKey {
         let res: IntentResult = try await engine.callRPC("robot.removeSkill", params: RemoveSkillParams(name: name))
         try engine.ensureIntentAccepted(res)
         await engine.refreshSkillsAndPolicies()
+      },
+      ensureConnected: { timeout in
+        try await LiveDuckSessionEngine.shared.ensureConnected(timeout: timeout)
+      },
+      setForegroundActive: { active in
+        await MainActor.run {
+          LiveDuckSessionEngine.shared.setForegroundActive(active)
+        }
+      },
+      performMoveStep: { request in
+        @Dependency(\.continuousClock) var clock
+        return try await DuckMoveStepExecutor.execute(
+          request: request,
+          clock: clock,
+          currentSnapshot: {
+            await LiveDuckSessionEngine.shared.currentSnapshot()
+          },
+          subscribeTof: { @MainActor in
+            let engine = LiveDuckSessionEngine.shared
+            _ = try? await engine.callRPC("tof.stream", params: EmptyParams(), quiet: true) as IntentResult
+          },
+          sendMove: { move in
+            await MainActor.run {
+              LiveDuckSessionEngine.shared.sendFireAndForget("robot.move", params: move)
+            }
+          }
+        )
+      },
+      capturePhoto: { @MainActor in
+        let engine = LiveDuckSessionEngine.shared
+        let videoInfo = engine.currentSnapshot().videoInfo
+        return try await VideoTrackRegistry.shared.captureNextFrame(videoInfo: videoInfo)
       }
     )
   }

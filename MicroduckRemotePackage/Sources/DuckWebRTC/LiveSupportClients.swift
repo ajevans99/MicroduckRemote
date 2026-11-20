@@ -215,8 +215,10 @@ extension HuggingFaceAuthClient: DependencyKey {
   public static var liveValue: HuggingFaceAuthClient {
     HuggingFaceAuthClient(
       loadSession: {
+        let data = UserDefaults.microduckShared.data(forKey: defaultsKey)
+          ?? UserDefaults.standard.data(forKey: defaultsKey)
         guard
-          let data = UserDefaults.standard.data(forKey: defaultsKey),
+          let data,
           let session = try? JSONDecoder().decode(HuggingFaceSession.self, from: data),
           session.isValid(at: Date())
         else {
@@ -226,11 +228,13 @@ extension HuggingFaceAuthClient: DependencyKey {
       },
       saveSession: { session in
         if let data = try? JSONEncoder().encode(session) {
+          UserDefaults.microduckShared.set(data, forKey: defaultsKey)
           UserDefaults.standard.set(data, forKey: defaultsKey)
           NotificationCenter.default.post(name: .microduckHuggingFaceSessionChanged, object: nil)
         }
       },
       clearSession: {
+        UserDefaults.microduckShared.removeObject(forKey: defaultsKey)
         UserDefaults.standard.removeObject(forKey: defaultsKey)
         NotificationCenter.default.post(name: .microduckHuggingFaceSessionChanged, object: nil)
       },

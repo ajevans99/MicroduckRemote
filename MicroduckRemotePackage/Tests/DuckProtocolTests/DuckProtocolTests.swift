@@ -143,4 +143,67 @@ import Testing
       )
     )
   }
+
+  @Test func tofFrontObstacleConeIgnoresOuterFloorCellsAndInvalidStatuses() {
+    var distances = Array(repeating: 600, count: 64)
+    var statuses = Array(repeating: 0, count: 64)
+    // Bottom-row floor reflection should be ignored by the central 4x4 cone:
+    distances[7 * 8 + 3] = 85
+    // Invalid sensor status (255) inside the central cone should be ignored:
+    distances[3 * 8 + 3] = 50
+    statuses[3 * 8 + 3] = 255
+    // Valid obstacle inside central 4x4 cone (rows 2..<6, cols 2..<6):
+    distances[4 * 8 + 4] = 165
+
+    let frame = TofFrame(seq: 1, rows: 8, cols: 8, distanceMm: distances, status: statuses)
+    expectNoDifference(frame.frontObstacleDistanceMm, 165)
+  }
+
+  @Test func moveStepRequestClampsOutOfRangeVelocitiesAndDurations() {
+    let request = DuckMoveStepRequest(
+      vx: 1.8,
+      vy: -0.9,
+      vyaw: -4.2,
+      durationSeconds: 45.0
+    )
+    expectNoDifference(
+      request.clampedTwist,
+      RobotMoveParams(
+        vx: DuckConstants.maxLinearVelocity,
+        vy: -DuckConstants.maxLinearVelocity,
+        vyaw: -DuckConstants.maxAngularVelocity
+      )
+    )
+    expectNoDifference(request.clampedDurationSeconds, DuckConstants.maxStepDurationSeconds)
+  }
+
+  @Test func sharedSummaryCoalescesTelemetryJitterUntilDiscreteStateChanges() {
+    let t0 = Date(timeIntervalSince1970: 1_795_150_000)
+    let base = DuckSharedSummary(
+      isConnected: true,
+      duckName: "duck-eb55",
+      peerID: "sim-a",
+      isSimulated: true,
+      isEnabled: true,
+      isSitting: false,
+      isFallen: false,
+      activePolicy: "walk",
+      batteryVolts: 7.42,
+      batteryPercent: 54,
+      maxMotorTempC: 32,
+      hottestMotor: "left_hip_yaw",
+      updatedAt: t0
+    )
+
+    var jittered = base
+    jittered.batteryVolts = 7.39
+    jittered.batteryPercent = 52
+    jittered.maxMotorTempC = 34
+    jittered.updatedAt = t0.addingTimeInterval(0.02)
+    expectNoDifference(base.hasSameControlSurfaceState(as: jittered), true)
+
+    var satDown = jittered
+    satDown.isSitting = true
+    expectNoDifference(base.hasSameControlSurfaceState(as: satDown), false)
+  }
 }
