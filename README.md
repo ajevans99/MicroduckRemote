@@ -39,7 +39,7 @@ The **Room Scan** tab uses Apple's on-device **RoomPlan** framework (camera + Li
 
 - **Doorway policy:** Keep open doorways/archways carved open with overhead lintels (**Open Doorways**), force every detected door open for full multi-room traversal (**Open All Doors**), or export all doors as solid boxes (**Solid Doors**).
 - **Scene tuning:** Toggle furniture collisions, floor visual overlays, dominant-wall axis alignment, and automatic `(0, 0)` indoor spawn clearance (which shifts the scene horizontally so Microduck spawns clear of walls and furniture on `z = 0`).
-- Tap **Share / AirDrop XML** or **Save to Files** to export `scene_<name>.xml`.
+- Tap **Choose iCloud Folder & Save** once to pick your **iCloud Drive › Microduck Scenes** folder (persisted via a security-scoped bookmark—works with Personal Teams without paid iCloud entitlements). Exported `scene_<name>.xml` files and `scene_<name>.json` sidecars sync automatically to the macOS app's Simulator tab, alongside **Share / AirDrop XML** and **Save to Files**.
 
 ### 3. Run in `duck-sim` (`microduck_rl`)
 

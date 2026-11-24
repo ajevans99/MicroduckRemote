@@ -410,6 +410,7 @@ public struct ConnectionSheetView: View {
     $0.duckSession = .previewValue
     $0.hubCatalog = .previewValue
     $0.roomScan = .previewValue
+    $0.iCloudSceneSync = .previewValue
   }
 ) {
   RootAppView(model: AppModel())

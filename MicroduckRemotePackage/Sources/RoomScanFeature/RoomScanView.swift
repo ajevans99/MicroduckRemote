@@ -49,6 +49,13 @@ public struct RoomScanView: View {
     ) { result in
       model.fileExporterCompleted(result)
     }
+    .fileImporter(
+      isPresented: $model.isFolderImporterPresented,
+      allowedContentTypes: [.folder],
+      allowsMultipleSelection: false
+    ) { result in
+      Task { await model.folderImporterCompleted(result) }
+    }
     .sheet(item: $model.xmlInspectorSheet) { inspector in
       XMLInspectorSheet(
         inspector: inspector,
@@ -57,6 +64,9 @@ public struct RoomScanView: View {
     }
     .onAppear {
       model.onAppear()
+    }
+    .task {
+      await model.refreshSyncedScenes()
     }
   }
 
@@ -76,6 +86,8 @@ public struct RoomScanView: View {
         scanningWorkflowGuideCard
 
         sampleSceneCard
+
+        syncedScenesCard
 
         if let errorMessage = model.errorMessage {
           errorCard(errorMessage)
@@ -354,6 +366,8 @@ public struct RoomScanView: View {
 
           exportActionsCard(result)
 
+          syncedScenesCard
+
           configurationCard(result)
 
           simulatorInstructionsCard(result.configuration)
@@ -434,6 +448,35 @@ public struct RoomScanView: View {
         Spacer()
       }
 
+      Button {
+        Task { await model.saveToICloudButtonTapped() }
+      } label: {
+        HStack(spacing: 8) {
+          if model.isSyncingToICloud {
+            ProgressView()
+          } else {
+            Image(systemName: model.iCloudAvailability.isConnected ? "icloud.and.arrow.up" : "folder.badge.gearshape")
+          }
+          if let folderName = model.iCloudAvailability.connectedFolderName {
+            Text("Save to iCloud Drive (\(folderName))")
+              .font(.subheadline.weight(.semibold))
+          } else {
+            Text("Choose iCloud Folder & Save")
+              .font(.subheadline.weight(.semibold))
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(model.isSyncingToICloud)
+
+      if !model.iCloudAvailability.isConnected {
+        Text("Pick your \"\(ICloudSceneSyncConstants.recommendedFolderName)\" folder in iCloud Drive once so scans sync straight to your Mac simulator.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
       HStack(spacing: 10) {
         Button {
           model.exportToFilesButtonTapped()
@@ -443,7 +486,7 @@ public struct RoomScanView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bordered)
 
         if let shareFileURL = model.shareFileURL {
           ShareLink(item: shareFileURL) {
@@ -457,6 +500,116 @@ public struct RoomScanView: View {
       }
     }
     .padding(16)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+  }
+
+  private var syncedScenesCard: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Synced Scenes (iCloud Drive)", systemImage: "icloud")
+          .font(.headline)
+        Spacer()
+        Button {
+          Task { await model.refreshSyncedScenes() }
+        } label: {
+          if model.isLoadingSyncedScenes {
+            ProgressView()
+              .controlSize(.small)
+          } else {
+            Image(systemName: "arrow.clockwise")
+          }
+        }
+        .buttonStyle(.borderless)
+        .disabled(model.isLoadingSyncedScenes)
+      }
+
+      HStack(spacing: 8) {
+        if let folderName = model.iCloudAvailability.connectedFolderName {
+          Label("Connected: \(folderName)", systemImage: "checkmark.icloud")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.cyan)
+          Spacer()
+          Button("Change") {
+            model.chooseSyncedFolderButtonTapped()
+          }
+          .font(.caption.weight(.semibold))
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        } else {
+          Text("Select \"\(ICloudSceneSyncConstants.recommendedFolderName)\" in iCloud Drive to sync with macOS.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Choose Folder") {
+            model.chooseSyncedFolderButtonTapped()
+          }
+          .font(.caption.weight(.semibold))
+          .buttonStyle(.borderedProminent)
+          .controlSize(.small)
+        }
+      }
+
+      if model.syncedScenes.isEmpty {
+        Text("No synced scans yet. Save a scanned room to your iCloud Drive folder to access it automatically in the macOS Microduck Simulator tab.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else {
+        VStack(spacing: 8) {
+          ForEach(model.syncedScenes) { record in
+            HStack(alignment: .center, spacing: 10) {
+              VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                  Text(record.metadata.displayName)
+                    .font(.subheadline.weight(.semibold))
+                  Text(record.storageLocation.badgeLabel)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                      (record.storageLocation == .localFallback ? Color.orange : Color.cyan).opacity(0.18),
+                      in: Capsule()
+                    )
+                    .foregroundStyle(record.storageLocation == .localFallback ? .orange : .cyan)
+                }
+
+                Text(
+                  "\(record.fileName) · \(record.metadata.roomCount)R · \(record.metadata.obstacleCount) obstacles"
+                )
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+                Text(record.metadata.exportedAt, format: .dateTime.month().day().hour().minute())
+                  .font(.caption2)
+                  .foregroundStyle(.tertiary)
+              }
+
+              Spacer()
+
+              Button {
+                Task { await model.inspectSyncedSceneButtonTapped(record) }
+              } label: {
+                Image(systemName: "doc.text.magnifyingglass")
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+
+              Button(role: .destructive) {
+                Task { await model.deleteSyncedSceneButtonTapped(record) }
+              } label: {
+                Image(systemName: "trash")
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+            .padding(10)
+            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
+          }
+        }
+      }
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
   }
 
@@ -621,6 +774,7 @@ private struct XMLInspectorSheet: View {
 #Preview(
   traits: .dependencies {
     $0.roomScan = .previewValue
+    $0.iCloudSceneSync = .previewValue
     $0.haptics = .previewValue
   }
 ) {

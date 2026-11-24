@@ -54,7 +54,9 @@ public final class RoomScanModel {
   }
 
   @ObservationIgnored @Dependency(\.roomScan) var roomScan
+  @ObservationIgnored @Dependency(\.iCloudSceneSync) var iCloudSceneSync
   @ObservationIgnored @Dependency(\.haptics) var haptics
+  @ObservationIgnored @Dependency(\.date.now) var now
 
   public var phase: Phase = .idle
   public var deviceSupport: RoomScanDeviceSupport = .supported
@@ -71,11 +73,17 @@ public final class RoomScanModel {
   public var exportResult: MJCFExportResult?
   public var shareFileURL: URL?
   public var isFileExporterPresented = false
+  public var isFolderImporterPresented = false
   public var xmlInspectorSheet: XMLInspectorSheetModel?
+  public var iCloudAvailability: ICloudSceneSyncAvailability = .needsFolderSelection
+  public var syncedScenes: [SyncedSceneRecord] = []
+  public var isSyncingToICloud = false
+  public var isLoadingSyncedScenes = false
   public var statusToast: String?
   public var errorMessage: String?
 
   @ObservationIgnored private var activeDriver: (any RoomCaptureDriver)?
+  @ObservationIgnored private var pendingSaveAfterFolderSelection = false
 
   public init() {}
 
@@ -245,6 +253,130 @@ public final class RoomScanModel {
     roomScan.copyToClipboard(xml)
     haptics.success()
     statusToast = "Copied MJCF XML to clipboard"
+  }
+
+  public func refreshSyncedScenes() async {
+    isLoadingSyncedScenes = true
+    defer { isLoadingSyncedScenes = false }
+    iCloudAvailability = await iCloudSceneSync.checkAvailability()
+    do {
+      syncedScenes = try await iCloudSceneSync.listScenes()
+    } catch {
+      errorMessage = "Could not list synced scenes: \(error.localizedDescription)"
+    }
+  }
+
+  public func chooseSyncedFolderButtonTapped() {
+    haptics.selectionChanged()
+    errorMessage = nil
+    pendingSaveAfterFolderSelection = false
+    isFolderImporterPresented = true
+  }
+
+  public func clearSyncedFolderButtonTapped() async {
+    haptics.selectionChanged()
+    errorMessage = nil
+    await iCloudSceneSync.clearSyncedFolder()
+    await refreshSyncedScenes()
+    statusToast = "Disconnected synced folder"
+  }
+
+  public func folderImporterCompleted(_ result: Result<[URL], any Error>) async {
+    let shouldSaveAfter = pendingSaveAfterFolderSelection
+    pendingSaveAfterFolderSelection = false
+    switch result {
+    case let .success(urls):
+      guard let folderURL = urls.first else { return }
+      do {
+        let folderName = try await iCloudSceneSync.setSyncedFolder(folderURL)
+        await refreshSyncedScenes()
+        haptics.success()
+        if shouldSaveAfter {
+          await performSaveToICloud()
+        } else {
+          statusToast = "Connected iCloud Drive folder: \(folderName)"
+        }
+      } catch {
+        haptics.warning()
+        errorMessage = "Could not connect folder: \(error.localizedDescription)"
+      }
+    case let .failure(error):
+      haptics.warning()
+      errorMessage = "Could not select iCloud Drive folder: \(error.localizedDescription)"
+    }
+  }
+
+  public func saveToICloudButtonTapped() async {
+    guard exportResult != nil else { return }
+    errorMessage = nil
+    statusToast = nil
+    iCloudAvailability = await iCloudSceneSync.checkAvailability()
+    if !iCloudAvailability.isConnected {
+      pendingSaveAfterFolderSelection = true
+      isFolderImporterPresented = true
+      return
+    }
+    await performSaveToICloud()
+  }
+
+  private func performSaveToICloud() async {
+    guard let exportResult else { return }
+    isSyncingToICloud = true
+    errorMessage = nil
+    statusToast = nil
+    defer { isSyncingToICloud = false }
+
+    let metadata = SyncedSceneMetadata(
+      slug: exportResult.configuration.sceneSlug,
+      displayName: SyncedSceneMetadata.displayName(
+        fromSceneName: exportResult.configuration.sceneName,
+        slug: exportResult.configuration.sceneSlug
+      ),
+      roomCount: exportResult.summary.roomCount,
+      obstacleCount: exportResult.geoms.count(where: \.hasCollision),
+      exportedAt: now
+    )
+
+    do {
+      let syncResult = try await iCloudSceneSync.saveScene(exportResult.xml, metadata)
+      iCloudAvailability = await iCloudSceneSync.checkAvailability()
+      syncedScenes = try await iCloudSceneSync.listScenes()
+      if syncResult.usedLocalFallback {
+        haptics.warning()
+      } else {
+        haptics.success()
+      }
+      statusToast = syncResult.statusMessage
+    } catch {
+      haptics.warning()
+      errorMessage = "Could not sync scene to iCloud Drive: \(error.localizedDescription)"
+    }
+  }
+
+  public func inspectSyncedSceneButtonTapped(_ record: SyncedSceneRecord) async {
+    errorMessage = nil
+    do {
+      let xml = try await iCloudSceneSync.readSceneXML(record)
+      haptics.selectionChanged()
+      xmlInspectorSheet = XMLInspectorSheetModel(fileName: record.fileName, xml: xml)
+    } catch {
+      haptics.warning()
+      errorMessage = "Could not read \(record.fileName): \(error.localizedDescription)"
+    }
+  }
+
+  public func deleteSyncedSceneButtonTapped(_ record: SyncedSceneRecord) async {
+    errorMessage = nil
+    statusToast = nil
+    do {
+      try await iCloudSceneSync.deleteScene(record)
+      syncedScenes.removeAll { $0.id == record.id }
+      haptics.selectionChanged()
+      statusToast = "Deleted \(record.fileName)"
+    } catch {
+      haptics.warning()
+      errorMessage = "Could not delete \(record.fileName): \(error.localizedDescription)"
+    }
   }
 
   public func makeActiveCaptureView() -> AnyView {

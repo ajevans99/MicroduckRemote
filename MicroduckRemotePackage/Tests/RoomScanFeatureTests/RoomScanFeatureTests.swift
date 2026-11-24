@@ -380,6 +380,140 @@ import simd
       )
     }
   }
+
+  @Test
+  func coordinatedSceneFileStorePersistsXMLSidecarLoadsBareXMLAndDeletes() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("RoomScanICloudStoreTests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let store = CoordinatedSceneFileStore(directoryURL: tempDir, storageLocation: .iCloudDrive)
+    let exportDate = Date(timeIntervalSince1970: 1_763_942_400)
+    let metadata = SyncedSceneMetadata(
+      slug: "living_room",
+      displayName: "Living Room",
+      roomCount: 2,
+      obstacleCount: 14,
+      exportedAt: exportDate
+    )
+    let xml = "<mujoco model=\"scene_living_room\"><worldbody/></mujoco>"
+
+    let saved = try store.save(xml: xml, metadata: metadata)
+    expectNoDifference(saved.fileName, "scene_living_room.xml")
+    expectNoDifference(saved.xmlURL.lastPathComponent, "scene_living_room.xml")
+    expectNoDifference(saved.metadataURL?.lastPathComponent, "scene_living_room.json")
+    expectNoDifference(saved.storageLocation, .iCloudDrive)
+
+    let rawJSON = try String(contentsOf: store.metadataFileURL(forSlug: "living_room"), encoding: .utf8)
+    expectNoDifference(rawJSON.contains("\"exportedAt\" : \"2025-11-24T00:00:00Z\""), true)
+    expectNoDifference(rawJSON.contains("\"slug\" : \"living_room\""), true)
+    expectNoDifference(rawJSON.contains("\"displayName\" : \"Living Room\""), true)
+    expectNoDifference(rawJSON.contains("\"roomCount\" : 2"), true)
+    expectNoDifference(rawJSON.contains("\"obstacleCount\" : 14"), true)
+
+    let bareXMLURL = tempDir.appendingPathComponent("scene_studio_loft.xml")
+    try Data("<mujoco model=\"scene_studio_loft\"/>".utf8).write(to: bareXMLURL)
+
+    let scenes = try store.listScenes()
+    expectNoDifference(scenes.count, 2)
+    let loadedPrimary = try #require(scenes.first(where: { $0.metadata.slug == "living_room" }))
+    expectNoDifference(loadedPrimary.metadata, metadata)
+    expectNoDifference(try store.readXML(slug: "living_room"), xml)
+
+    let loadedBare = try #require(scenes.first(where: { $0.metadata.slug == "studio_loft" }))
+    expectNoDifference(loadedBare.metadata.displayName, "Studio Loft")
+    expectNoDifference(loadedBare.metadataURL, nil)
+
+    try store.delete(slug: "living_room")
+    expectNoDifference(FileManager.default.fileExists(atPath: saved.xmlURL.path), false)
+    expectNoDifference(FileManager.default.fileExists(atPath: store.metadataFileURL(forSlug: "living_room").path), false)
+    expectNoDifference(try store.listScenes().map(\.metadata.slug), ["studio_loft"])
+  }
+
+  @Test
+  @MainActor
+  func modelConnectsICloudFolderSavesInspectsAndDeletesScenes() async throws {
+    let tempDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("RoomScanModelICloudTests-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("Microduck Scenes", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir.deletingLastPathComponent()) }
+
+    let selectedFolder = LockIsolated<URL?>(nil)
+    let fixedDate = Date(timeIntervalSince1970: 1_763_942_400)
+
+    try await withDependencies {
+      $0.haptics = .previewValue
+      $0.roomScan = .previewValue
+      $0.date.now = fixedDate
+      $0.iCloudSceneSync = ICloudSceneSyncClient(
+        checkAvailability: {
+          if let folder = selectedFolder.value {
+            return .folderConnected(folderName: folder.lastPathComponent)
+          }
+          return .needsFolderSelection
+        },
+        setSyncedFolder: { url in
+          selectedFolder.setValue(url)
+          return url.lastPathComponent
+        },
+        clearSyncedFolder: {
+          selectedFolder.setValue(nil)
+        },
+        saveScene: { xml, metadata in
+          let dir = selectedFolder.value ?? tempDir
+          let store = CoordinatedSceneFileStore(directoryURL: dir, storageLocation: .syncedFolder)
+          let record = try store.save(xml: xml, metadata: metadata)
+          return ICloudSceneSyncResult(
+            record: record,
+            usedLocalFallback: false,
+            statusMessage: "Saved \(record.fileName) to \(dir.lastPathComponent)"
+          )
+        },
+        listScenes: {
+          guard let dir = selectedFolder.value else { return [] }
+          return try CoordinatedSceneFileStore(directoryURL: dir, storageLocation: .syncedFolder).listScenes()
+        },
+        readSceneXML: { record in
+          let dir = selectedFolder.value ?? record.xmlURL.deletingLastPathComponent()
+          return try CoordinatedSceneFileStore(directoryURL: dir, storageLocation: .syncedFolder)
+            .readXML(slug: record.metadata.slug)
+        },
+        deleteScene: { record in
+          let dir = selectedFolder.value ?? record.xmlURL.deletingLastPathComponent()
+          try CoordinatedSceneFileStore(directoryURL: dir, storageLocation: .syncedFolder)
+            .delete(slug: record.metadata.slug)
+        }
+      )
+    } operation: {
+      let model = RoomScanModel()
+      model.loadSampleApartmentButtonTapped()
+
+      await model.saveToICloudButtonTapped()
+      expectNoDifference(model.isFolderImporterPresented, true)
+      expectNoDifference(model.syncedScenes, [])
+
+      await model.folderImporterCompleted(.success([tempDir]))
+      expectNoDifference(model.iCloudAvailability, .folderConnected(folderName: "Microduck Scenes"))
+      expectNoDifference(model.statusToast, "Saved scene_my_apartment.xml to Microduck Scenes")
+      expectNoDifference(model.syncedScenes.count, 1)
+
+      let record = try #require(model.syncedScenes.first)
+      expectNoDifference(record.metadata.slug, "my_apartment")
+      expectNoDifference(record.metadata.displayName, "My Apartment")
+      expectNoDifference(record.metadata.roomCount, 2)
+      expectNoDifference(record.metadata.obstacleCount > 0, true)
+      expectNoDifference(record.metadata.exportedAt, fixedDate)
+
+      await model.inspectSyncedSceneButtonTapped(record)
+      expectNoDifference(model.xmlInspectorSheet?.fileName, "scene_my_apartment.xml")
+      expectNoDifference(model.xmlInspectorSheet?.xml.contains("robot_groundcontact_backlash.xml"), true)
+
+      await model.deleteSyncedSceneButtonTapped(record)
+      expectNoDifference(model.syncedScenes, [])
+      expectNoDifference(model.statusToast, "Deleted scene_my_apartment.xml")
+    }
+  }
 }
 
 @MainActor
