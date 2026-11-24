@@ -29,5 +29,47 @@ struct MicroduckShortcuts: AppShortcutsProvider {
       shortTitle: "Play Duck Sound",
       systemImageName: "speaker.wave.2.fill"
     )
+
+    AppShortcut(
+      intent: PerformTrickIntent(),
+      phrases: [
+        "Do \(\.$trick) on \(.applicationName)",
+        "Make \(.applicationName) perform \(\.$trick)",
+        "Have \(.applicationName) do \(\.$trick)",
+      ],
+      shortTitle: "Do Duck Trick",
+      systemImageName: "sparkles"
+    )
+
+    AppShortcut(
+      intent: GetDuckStatusIntent(),
+      phrases: [
+        "Check \(.applicationName) status",
+        "How is \(.applicationName) doing",
+        "Check \(.applicationName) battery",
+      ],
+      shortTitle: "Duck Status",
+      systemImageName: "waveform.path.ecg"
+    )
+
+    AppShortcut(
+      intent: SetDuckPostureIntent(),
+      phrases: [
+        "Have \(.applicationName) \(\.$posture)",
+        "Make \(.applicationName) \(\.$posture)",
+      ],
+      shortTitle: "Duck Posture",
+      systemImageName: "figure.stand"
+    )
+
+    AppShortcut(
+      intent: MoveDuckStepIntent(),
+      phrases: [
+        "Move \(.applicationName) \(\.$direction)",
+        "Walk \(.applicationName) \(\.$direction)",
+      ],
+      shortTitle: "Move Duck",
+      systemImageName: "arrow.up.and.down.and.arrow.left.and.right"
+    )
   }
 }

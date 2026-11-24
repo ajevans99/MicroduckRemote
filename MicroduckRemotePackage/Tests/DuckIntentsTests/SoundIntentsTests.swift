@@ -7,7 +7,7 @@ import DuckProtocol
 import Foundation
 import Testing
 
-@Suite struct Stage1IntentsTests {
+@Suite struct SoundIntentsTests {
   private struct RecordedSoundCall: Equatable, Sendable {
     var tag: SoundTag
     var hold: Bool?
@@ -17,73 +17,6 @@ import Testing
     let roundTripped = SoundTag.allCases.map { DuckSound($0).soundTag }
     expectNoDifference(roundTripped, SoundTag.allCases)
     expectNoDifference(DuckSound.allCases.count, SoundTag.allCases.count)
-  }
-
-  @Test func emergencyStopImmediatelyZeroesVelocityAndHaltsWhenConnected() async throws {
-    let events = LockIsolated<[String]>([])
-
-    try await withDependencies {
-      var session = DuckSessionClient.previewValue
-      session.ensureConnected = { _ in
-        events.withValue { $0.append("ensureConnected") }
-        return DuckIdentity(peerID: "sim-duck-a", name: "duck-eb55", isSimulated: true)
-      }
-      session.sendMove = { move in
-        events.withValue { $0.append("move:\(move.vx),\(move.vy),\(move.vyaw)") }
-      }
-      session.stop = {
-        events.withValue { $0.append("stop") }
-      }
-      $0.duckSession = session
-    } operation: {
-      let intent = EmergencyStopDuckIntent()
-      _ = try await intent.perform()
-    }
-
-    expectNoDifference(
-      events.value,
-      [
-        "move:0.0,0.0,0.0",
-        "stop",
-      ]
-    )
-  }
-
-  @Test func emergencyStopColdStartsConnectionWhenControlChannelIsClosed() async throws {
-    let events = LockIsolated<[String]>([])
-
-    try await withDependencies {
-      var disconnected = DuckSessionSnapshot.previewConnected
-      disconnected.controlOpen = false
-      disconnected.phase = .disconnected
-      let snapshot = disconnected
-
-      var session = DuckSessionClient.previewValue
-      session.currentSnapshot = { snapshot }
-      session.ensureConnected = { _ in
-        events.withValue { $0.append("ensureConnected") }
-        return DuckIdentity(peerID: "hw-duck-1", name: "duck-01", isSimulated: false)
-      }
-      session.sendMove = { move in
-        events.withValue { $0.append("move:\(move.vx),\(move.vy),\(move.vyaw)") }
-      }
-      session.stop = {
-        events.withValue { $0.append("stop") }
-      }
-      $0.duckSession = session
-    } operation: {
-      let intent = EmergencyStopDuckIntent()
-      _ = try await intent.perform()
-    }
-
-    expectNoDifference(
-      events.value,
-      [
-        "ensureConnected",
-        "move:0.0,0.0,0.0",
-        "stop",
-      ]
-    )
   }
 
   @Test func playDuckSoundSendsSingleOneShotForNonHoldableTag() async throws {

@@ -316,6 +316,7 @@ public struct DuckSessionClient: Sendable {
   public var selectDuck: @Sendable (String) async -> Void
   public var sendMove: @Sendable (RobotMoveParams) async -> Void
   public var sendLook: @Sendable (RobotLookParams) async -> RobotLookResult?
+  public var setEnabled: @Sendable (Bool) async throws -> Void
   public var toggleEnable: @Sendable () async throws -> Void
   public var standBackUp: @Sendable () async throws -> Void
   public var stop: @Sendable () async throws -> Void
@@ -352,6 +353,7 @@ public struct DuckSessionClient: Sendable {
     selectDuck: @escaping @Sendable (String) async -> Void,
     sendMove: @escaping @Sendable (RobotMoveParams) async -> Void,
     sendLook: @escaping @Sendable (RobotLookParams) async -> RobotLookResult?,
+    setEnabled: @escaping @Sendable (Bool) async throws -> Void = { _ in },
     toggleEnable: @escaping @Sendable () async throws -> Void,
     standBackUp: @escaping @Sendable () async throws -> Void = {},
     stop: @escaping @Sendable () async throws -> Void,
@@ -398,6 +400,7 @@ public struct DuckSessionClient: Sendable {
     self.selectDuck = selectDuck
     self.sendMove = sendMove
     self.sendLook = sendLook
+    self.setEnabled = setEnabled
     self.toggleEnable = toggleEnable
     self.standBackUp = standBackUp
     self.stop = stop

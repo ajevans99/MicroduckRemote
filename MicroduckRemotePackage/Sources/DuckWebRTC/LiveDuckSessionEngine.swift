@@ -1073,6 +1073,15 @@ extension DuckSessionClient: DependencyKey {
       sendLook: { look in
         try? await LiveDuckSessionEngine.shared.callRPC("robot.look", params: look, quiet: true)
       },
+      setEnabled: { @MainActor on in
+        let engine = LiveDuckSessionEngine.shared
+        let res: IntentResult = try await engine.callRPC(
+          "robot.enable",
+          params: RobotEnableParams(on: on, toggle: false)
+        )
+        try engine.ensureIntentAccepted(res)
+        await engine.refreshSkillsAndPolicies()
+      },
       toggleEnable: { @MainActor in
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC(
