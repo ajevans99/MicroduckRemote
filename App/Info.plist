@@ -36,6 +36,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Scans rooms on-device using the camera and LiDAR scanner with Apple RoomPlan to build MuJoCo XML scenes for Microduck.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connects to your Microduck simulator or robot over your local network.</string>
 	<key>UILaunchScreen</key>
