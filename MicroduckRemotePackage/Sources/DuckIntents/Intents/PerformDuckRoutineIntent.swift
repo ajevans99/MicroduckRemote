@@ -4,8 +4,7 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-@AppIntent(.tool)
-public struct PerformDuckRoutineIntent: LiveActivityIntent {
+public struct PerformDuckRoutineIntent: AppIntent {
   public static let title: LocalizedStringResource = "Perform Duck Routine"
   public static let description = IntentDescription(
     "Performs an improvised multi-step expressive choreography on Microduck combining head gaze, sounds, RGB face light, bounded steps, and built-in tricks. Use this for creative moods, reactions, celebrations, or skits (for example 'act suspicious', 'celebrate', or 'greet my guest')."
@@ -162,3 +161,6 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
     return .result(value: executedRoutine, dialog: IntentDialog(stringLiteral: dialogText))
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension PerformDuckRoutineIntent: ToolIntent, LiveActivityIntent {}

@@ -4,8 +4,7 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-@AppIntent(.tool)
-public struct DirectDuckGazeIntent: LiveActivityIntent {
+public struct DirectDuckGazeIntent: AppIntent {
   public static let title: LocalizedStringResource = "Aim Microduck Head"
   public static let description = IntentDescription(
     "Aims Microduck's head and camera toward a horizontal and vertical direction (for example look left, look up at a person, look down at the floor, or center ahead)."
@@ -66,3 +65,6 @@ public struct DirectDuckGazeIntent: LiveActivityIntent {
     return .result(dialog: "Aimed \(duckName)'s head.")
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension DirectDuckGazeIntent: ToolIntent, LiveActivityIntent {}

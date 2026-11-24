@@ -17,6 +17,9 @@ public enum DuckConstants {
   public static let defaultHoldSeconds = 3.0
   public static let jointDeviationFullScaleRadians = 0.20
   public static let appGroupID = "group.dev.ajevans.microduckremote"
+  public static let iCloudContainerID = "iCloud.dev.ajevans.microduckremote"
+  public static let iCloudDriveScenesFolderName = "Microduck Scenes"
+  public static let syncedScenesSubdirectory = "Documents/Scenes"
   public static let headlessIdleTimeoutSeconds = 30.0
   public static let maxStepDurationSeconds = 10.0
   public static let defaultMinObstacleDistanceMm = 200

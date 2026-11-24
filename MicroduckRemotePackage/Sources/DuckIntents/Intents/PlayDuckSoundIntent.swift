@@ -3,8 +3,7 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-@AppIntent(.tool)
-public struct PlayDuckSoundIntent: LiveActivityIntent {
+public struct PlayDuckSoundIntent: AppIntent {
   public static let title: LocalizedStringResource = "Play Duck Sound"
   public static let description = IntentDescription(
     "Plays an expressive sound on Microduck, such as chirp, greet, inquire, alarm, peck, coo, or a held wheee."
@@ -87,3 +86,6 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
     return .result(dialog: "\(duckName) held Wheee for \(formattedDuration) seconds.")
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension PlayDuckSoundIntent: ToolIntent, LiveActivityIntent {}

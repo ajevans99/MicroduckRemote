@@ -4,8 +4,7 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-@AppIntent(.tool)
-public struct SnapDuckPhotoIntent: LiveActivityIntent {
+public struct SnapDuckPhotoIntent: AppIntent {
   public static let title: LocalizedStringResource = "Snap Microduck Photo"
   public static let description = IntentDescription(
     "Captures a live JPEG photo from Microduck's first-person head camera and returns it as a transferable image that can be shared in Messages, saved to Photos, or analyzed in Shortcuts."
@@ -51,3 +50,6 @@ public struct SnapDuckPhotoIntent: LiveActivityIntent {
     )
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension SnapDuckPhotoIntent: ToolIntent, LiveActivityIntent {}

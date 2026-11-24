@@ -10,9 +10,10 @@ import UniformTypeIdentifiers
 /// Conforms to `Transferable` so Siri AI and Shortcuts can hand the photo directly to
 /// Messages, Mail, Photos, Notes, or Apple Intelligence vision actions, and to
 /// `SnippetRepresentableEntity` so Siri displays the frame inline via `CardSnippet`.
-public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresentableEntity, Equatable, Sendable {
+public struct DuckPhotoEntity: TransientAppEntity, Transferable, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Microduck Photo")
 
+  #if os(iOS)
   @Property(
     title: "Duck Name",
     description: "Name of the Microduck robot or simulator that took this photo."
@@ -48,6 +49,25 @@ public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresen
     description: "JPEG image file captured from Microduck's head camera."
   )
   public var imageFile: IntentFile
+  #else
+  @Property(title: "Duck Name")
+  public var duckName: String
+
+  @Property(title: "Captured At")
+  public var capturedAt: Date
+
+  @Property(title: "Width")
+  public var width: Int
+
+  @Property(title: "Height")
+  public var height: Int
+
+  @Property(title: "Caption")
+  public var caption: String
+
+  @Property(title: "Image File")
+  public var imageFile: IntentFile
+  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     DisplayRepresentation(
@@ -97,7 +117,10 @@ public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresen
       && lhs.caption == rhs.caption
       && lhs.imageFile.data == rhs.imageFile.data
   }
+}
 
+@available(iOS 27.3, macOS 27.3, *)
+extension DuckPhotoEntity: SnippetRepresentableEntity {
   public static var snippet: some EntitySnippetContent<Self> {
     CardSnippet(supportedFamilies: [.standard, .compact]) { photo, context in
       DuckPhotoCardView(photo: photo, isCompact: context.family == .compact)

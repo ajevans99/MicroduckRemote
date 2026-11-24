@@ -7,20 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18B31B08915E479EF7A04629 /* MicroduckRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */; };
+		346A689AFAD74EEDBA4630C6 /* DuckIntents in Frameworks */ = {isa = PBXBuildFile; productRef = 506E77876BAA01E38C710333 /* DuckIntents */; };
 		37B9DF43345381FD98FF881C /* AppFeature in Frameworks */ = {isa = PBXBuildFile; productRef = C2F2C7143789B46163BD7FD3 /* AppFeature */; };
+		3E5657409CF2254F3038290E /* DuckWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = B46F5681C2A238A8E27D8701 /* DuckWebRTC */; };
+		3EFD60EA6D0A7E6C96517FDF /* MicroduckShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4891082A5C7C9FDEEA9677FD /* MicroduckShortcuts.swift */; };
 		5B1E8F07C391D7E8738C5BA9 /* MicroduckRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */; };
+		6777E44971EBF8D47470F2A7 /* RoomScanFeature in Frameworks */ = {isa = PBXBuildFile; productRef = B3DD9FCDFE29E24D97E9CF6E /* RoomScanFeature */; };
 		768C408DC026B014304AAC8B /* DuckIntents in Frameworks */ = {isa = PBXBuildFile; productRef = BE1246E34A1A710C3A00B380 /* DuckIntents */; };
 		7BC217811D1DF1E0A4DFF679 /* RoomScanFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 11E1333FC2EB2B836768A10C /* RoomScanFeature */; };
 		7C93FE2DD280FCA45FB2DA65 /* MicroduckShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4891082A5C7C9FDEEA9677FD /* MicroduckShortcuts.swift */; };
+		8D8192C445913E5A0FB18B9E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C93ABB8EC564A6388535B3A /* Assets.xcassets */; };
 		B9614D6F312229753E1500AF /* DuckDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 1ABDF28BFCDF93D4871A42DD /* DuckDependencies */; };
+		BAB8780106565968DAD102FD /* DuckDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = A756F06E120C315DAE1D7703 /* DuckDependencies */; };
+		E0B6A93C2A9F73595E2102E0 /* SimulatorFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D94CFA2479C82FE0893DCAD7 /* SimulatorFeature */; };
 		E199C00CEE5A9326C35E46EB /* DuckWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 984C0160F44D455D8F14E49C /* DuckWebRTC */; };
 		E82B518272AE4575D209854D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C93ABB8EC564A6388535B3A /* Assets.xcassets */; };
+		FFDE11701684CBED5F274D2C /* AppFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 77A15899342F68EA515A3F82 /* AppFeature */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04E3A22617803D57F41307B1 /* MicroduckRemoteMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MicroduckRemoteMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		067BA555881AD80D6E2EA324 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4891082A5C7C9FDEEA9677FD /* MicroduckShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicroduckShortcuts.swift; sourceTree = "<group>"; };
 		5E58314CC01250C5CCA79A91 /* MicroduckRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MicroduckRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		77F946B05590AFC8EBBA2E1C /* Info-macOS.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info-macOS.plist"; sourceTree = "<group>"; };
 		8C93ABB8EC564A6388535B3A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C0B3D988DCAD52E042351596 /* MicroduckRemotePackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MicroduckRemotePackage; path = MicroduckRemotePackage; sourceTree = SOURCE_ROOT; };
 		E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicroduckRemoteApp.swift; sourceTree = "<group>"; };
@@ -39,6 +50,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C6CF585AE5F326788EFA1181 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FFDE11701684CBED5F274D2C /* AppFeature in Frameworks */,
+				BAB8780106565968DAD102FD /* DuckDependencies in Frameworks */,
+				346A689AFAD74EEDBA4630C6 /* DuckIntents in Frameworks */,
+				3E5657409CF2254F3038290E /* DuckWebRTC in Frameworks */,
+				6777E44971EBF8D47470F2A7 /* RoomScanFeature in Frameworks */,
+				E0B6A93C2A9F73595E2102E0 /* SimulatorFeature in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -46,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				8C93ABB8EC564A6388535B3A /* Assets.xcassets */,
+				77F946B05590AFC8EBBA2E1C /* Info-macOS.plist */,
 				067BA555881AD80D6E2EA324 /* Info.plist */,
 				E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */,
 				4891082A5C7C9FDEEA9677FD /* MicroduckShortcuts.swift */,
@@ -65,6 +90,7 @@
 			isa = PBXGroup;
 			children = (
 				5E58314CC01250C5CCA79A91 /* MicroduckRemote.app */,
+				04E3A22617803D57F41307B1 /* MicroduckRemoteMac.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,6 +131,31 @@
 			productReference = 5E58314CC01250C5CCA79A91 /* MicroduckRemote.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BDA8B68A012E3D2F372C7C8D /* MicroduckRemoteMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A276980EF8D9FAABFC1B54 /* Build configuration list for PBXNativeTarget "MicroduckRemoteMac" */;
+			buildPhases = (
+				6906F75CC4B5BE36B20D6C79 /* Sources */,
+				B0E1ECB06DA6EF9DEDE24184 /* Resources */,
+				C6CF585AE5F326788EFA1181 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MicroduckRemoteMac;
+			packageProductDependencies = (
+				77A15899342F68EA515A3F82 /* AppFeature */,
+				A756F06E120C315DAE1D7703 /* DuckDependencies */,
+				506E77876BAA01E38C710333 /* DuckIntents */,
+				B46F5681C2A238A8E27D8701 /* DuckWebRTC */,
+				B3DD9FCDFE29E24D97E9CF6E /* RoomScanFeature */,
+				D94CFA2479C82FE0893DCAD7 /* SimulatorFeature */,
+			);
+			productName = MicroduckRemoteMac;
+			productReference = 04E3A22617803D57F41307B1 /* MicroduckRemoteMac.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -115,6 +166,10 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					2967E7998796B391B682B6A7 = {
+						DevelopmentTeam = 3Z68NFJBHS;
+						ProvisioningStyle = Automatic;
+					};
+					BDA8B68A012E3D2F372C7C8D = {
 						DevelopmentTeam = 3Z68NFJBHS;
 						ProvisioningStyle = Automatic;
 					};
@@ -138,6 +193,7 @@
 			projectRoot = "";
 			targets = (
 				2967E7998796B391B682B6A7 /* MicroduckRemote */,
+				BDA8B68A012E3D2F372C7C8D /* MicroduckRemoteMac */,
 			);
 		};
 /* End PBXProject section */
@@ -151,6 +207,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B0E1ECB06DA6EF9DEDE24184 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D8192C445913E5A0FB18B9E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -160,6 +224,15 @@
 			files = (
 				5B1E8F07C391D7E8738C5BA9 /* MicroduckRemoteApp.swift in Sources */,
 				7C93FE2DD280FCA45FB2DA65 /* MicroduckShortcuts.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6906F75CC4B5BE36B20D6C79 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				18B31B08915E479EF7A04629 /* MicroduckRemoteApp.swift in Sources */,
+				3EFD60EA6D0A7E6C96517FDF /* MicroduckShortcuts.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -218,16 +291,42 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.3;
+				MACOSX_DEPLOYMENT_TARGET = 27.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
+		};
+		2CB0E35587AD2A014728EC6A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MicroduckRemoteMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3Z68NFJBHS;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "App/Info-macOS.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Microduck;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connects to your Microduck simulator or robot over your local network.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ajevans.microduckremote;
+				PRODUCT_NAME = Microduck;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
 		};
 		41DE1C085CBF1AE43EBB1441 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -258,6 +357,32 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		854BEE025A601E2EBBE78F8D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MicroduckRemoteMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3Z68NFJBHS;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "App/Info-macOS.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Microduck;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connects to your Microduck simulator or robot over your local network.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ajevans.microduckremote;
+				PRODUCT_NAME = Microduck;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
 		};
 		B53C54E72CFF2AF35F20480D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -335,10 +460,10 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.3;
+				MACOSX_DEPLOYMENT_TARGET = 27.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -366,6 +491,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		D1A276980EF8D9FAABFC1B54 /* Build configuration list for PBXNativeTarget "MicroduckRemoteMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				854BEE025A601E2EBBE78F8D /* Debug */,
+				2CB0E35587AD2A014728EC6A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -384,7 +518,27 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = DuckDependencies;
 		};
+		506E77876BAA01E38C710333 /* DuckIntents */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DuckIntents;
+		};
+		77A15899342F68EA515A3F82 /* AppFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppFeature;
+		};
 		984C0160F44D455D8F14E49C /* DuckWebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DuckWebRTC;
+		};
+		A756F06E120C315DAE1D7703 /* DuckDependencies */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DuckDependencies;
+		};
+		B3DD9FCDFE29E24D97E9CF6E /* RoomScanFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RoomScanFeature;
+		};
+		B46F5681C2A238A8E27D8701 /* DuckWebRTC */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DuckWebRTC;
 		};
@@ -395,6 +549,10 @@
 		C2F2C7143789B46163BD7FD3 /* AppFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AppFeature;
+		};
+		D94CFA2479C82FE0893DCAD7 /* SimulatorFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SimulatorFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

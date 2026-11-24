@@ -1,3 +1,6 @@
+#if canImport(AppKit)
+import AppKit
+#endif
 import CoreImage
 import CoreVideo
 import DuckDependencies
@@ -228,6 +231,22 @@ public struct LiveDuckVideoCanvas: View {
       } else {
         PreviewDuckCameraBackdrop(videoInfo: videoInfo)
       }
+      #elseif canImport(AppKit)
+      if let track = registry.currentTrack {
+        GeometryReader { proxy in
+          let rotation = videoInfo.normalizedRotation
+          let quarterTurn = rotation == 90 || rotation == 270
+          let frameWidth = quarterTurn ? proxy.size.height : proxy.size.width
+          let frameHeight = quarterTurn ? proxy.size.width : proxy.size.height
+          MetalRTCNSVideoRepresentable(track: track)
+            .frame(width: frameWidth, height: frameHeight)
+            .rotationEffect(.degrees(Double(rotation)))
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+        }
+        .clipped()
+      } else {
+        PreviewDuckCameraBackdrop(videoInfo: videoInfo)
+      }
       #else
       PreviewDuckCameraBackdrop(videoInfo: videoInfo)
       #endif
@@ -268,6 +287,40 @@ private struct MetalRTCVideoRepresentable: UIViewRepresentable {
 
   static func dismantleUIView(_ uiView: RTCMTLVideoView, coordinator: Coordinator) {
     coordinator.attachedTrack?.remove(uiView)
+    coordinator.attachedTrack = nil
+  }
+}
+#elseif canImport(AppKit)
+private struct MetalRTCNSVideoRepresentable: NSViewRepresentable {
+  let track: RTCVideoTrack
+
+  final class Coordinator {
+    var attachedTrack: RTCVideoTrack?
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator()
+  }
+
+  func makeNSView(context: Context) -> RTCMTLNSVideoView {
+    let view = RTCMTLNSVideoView(frame: .zero)
+    view.wantsLayer = true
+    view.layer?.masksToBounds = true
+    track.add(view)
+    context.coordinator.attachedTrack = track
+    return view
+  }
+
+  func updateNSView(_ nsView: RTCMTLNSVideoView, context: Context) {
+    if context.coordinator.attachedTrack !== track {
+      context.coordinator.attachedTrack?.remove(nsView)
+      track.add(nsView)
+      context.coordinator.attachedTrack = track
+    }
+  }
+
+  static func dismantleNSView(_ nsView: RTCMTLNSVideoView, coordinator: Coordinator) {
+    coordinator.attachedTrack?.remove(nsView)
     coordinator.attachedTrack = nil
   }
 }

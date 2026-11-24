@@ -8,6 +8,7 @@ import SwiftUI
 import SwiftUINavigation
 import CockpitFeature
 import RoomScanFeature
+import SimulatorFeature
 import TelemetryFeature
 import TricksFeature
 
@@ -188,6 +189,9 @@ public final class AppModel {
     case tricks
     case roomScan
     case telemetry
+    #if os(macOS)
+    case simulator
+    #endif
   }
 
   @ObservationIgnored @Dependency(\.duckSession) var duckSession
@@ -199,6 +203,9 @@ public final class AppModel {
   public var tricksModel = TricksModel()
   public var roomScanModel = RoomScanModel()
   public var telemetryModel = TelemetryModel()
+  #if os(macOS)
+  public var simulatorModel = SimulatorModel()
+  #endif
   public var connectionSheet: ConnectionSheetModel?
   private var didAutoConnect = false
 
@@ -206,6 +213,11 @@ public final class AppModel {
     cockpitModel.onConnectionPillTapped = { [weak self] in
       self?.presentConnectionSheet()
     }
+    #if os(macOS)
+    simulatorModel.onOpenDriveTab = { [weak self] in
+      self?.selectedTab = .cockpit
+    }
+    #endif
   }
 
   public func task() async {
@@ -213,7 +225,7 @@ public final class AppModel {
     didAutoConnect = true
     let current = await duckSession.currentSnapshot()
     if !current.phase.isConnected, !current.phase.is(\.connecting) {
-      #if targetEnvironment(simulator)
+      #if targetEnvironment(simulator) || os(macOS)
       let runningInSimulator = true
       #else
       let runningInSimulator = false
@@ -261,6 +273,11 @@ public struct RootAppView: View {
       Tab("Telemetry", systemImage: "waveform.path.ecg.rectangle", value: AppModel.Tab.telemetry) {
         TelemetryInspectorView(model: model.telemetryModel)
       }
+      #if os(macOS)
+      Tab("Simulator", systemImage: "cube.transparent", value: AppModel.Tab.simulator) {
+        SimulatorView(model: model.simulatorModel)
+      }
+      #endif
     }
     .sheet(item: $model.connectionSheet) { sheetModel in
       ConnectionSheetView(model: sheetModel)
@@ -273,6 +290,9 @@ public struct RootAppView: View {
     .task {
       await model.task()
     }
+    #if os(macOS)
+    .frame(minWidth: 820, minHeight: 600)
+    #endif
   }
 }
 
@@ -388,6 +408,9 @@ public struct ConnectionSheetView: View {
         }
       }
       .navigationTitle("Connect to Duck")
+      #if os(macOS)
+      .formStyle(.grouped)
+      #endif
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") {
@@ -402,6 +425,9 @@ public struct ConnectionSheetView: View {
         await model.task()
       }
     }
+    #if os(macOS)
+    .frame(minWidth: 460, idealWidth: 520, minHeight: 460, idealHeight: 540)
+    #endif
   }
 }
 

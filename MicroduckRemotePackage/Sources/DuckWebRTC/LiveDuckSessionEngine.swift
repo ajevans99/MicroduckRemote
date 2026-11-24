@@ -126,7 +126,7 @@ final class LiveDuckSessionEngine: NSObject {
     if !wantedConnection || snapshot.phase.is(\.disconnected) || snapshot.phase.is(\.failed) {
       @Dependency(\.connectionPreferences) var connectionPreferences
       @Dependency(\.huggingFaceAuth) var huggingFaceAuth
-      #if targetEnvironment(simulator)
+      #if targetEnvironment(simulator) || os(macOS)
       let runningInSimulator = true
       #else
       let runningInSimulator = false
