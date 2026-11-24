@@ -157,6 +157,21 @@ import Testing
     )
   }
 
+  @Test func enrichesPathWithHomebrewRustupCargoAndStripsANSIColors() {
+    let enriched = SimulatorConfiguration.enrichedPATH(
+      existing: "/usr/bin:/bin:/opt/homebrew/bin",
+      home: "/Users/tester"
+    )
+    let entries = enriched.split(separator: ":").map(String.init)
+    expectNoDifference(entries.contains("/opt/homebrew/opt/rustup/bin"), true)
+    expectNoDifference(entries.contains("/Users/tester/.cargo/bin"), true)
+    expectNoDifference(entries.contains("/Users/tester/.local/share/mise/shims"), true)
+    expectNoDifference(entries.filter { $0 == "/opt/homebrew/bin" }.count, 1)
+
+    let raw = "\u{001B}[36m==\u{001B}[0m building the daemons from main"
+    expectNoDifference(SimulatorSceneScanner.stripANSI(raw), "== building the daemons from main")
+  }
+
   @Test @MainActor func modelStagesICloudSceneLaunchesAndAutoConnectsDrive() async {
     let stagedSlugs = LockIsolated<[String]>([])
     let launchedScenes = LockIsolated<[String?]>([])

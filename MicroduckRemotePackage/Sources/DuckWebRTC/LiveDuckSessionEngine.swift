@@ -497,7 +497,9 @@ final class LiveDuckSessionEngine: NSObject {
       createPeerConnection()
 
     case let .peerSdp(_, sdp):
-      guard let pc = peerConnection else { return }
+      guard let pc = peerConnection, !sdp.sdp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return
+      }
       let rtcType: RTCSdpType = sdp.type == "answer" ? .answer : .offer
       let remoteDesc = RTCSessionDescription(type: rtcType, sdp: sdp.sdp)
       do {
@@ -514,7 +516,7 @@ final class LiveDuckSessionEngine: NSObject {
       }
 
     case let .peerIce(_, ice):
-      guard let pc = peerConnection else { return }
+      guard let pc = peerConnection, !ice.isEndOfCandidates else { return }
       let candidate = RTCIceCandidate(
         sdp: ice.candidate,
         sdpMLineIndex: ice.sdpMLineIndex,
@@ -722,6 +724,9 @@ final class LiveDuckSessionEngine: NSObject {
     guard snapshot.controlOpen else { return }
     if let modeRes: RobotModeResult = try? await callRPC("robot.mode", params: EmptyParams(), quiet: true) {
       snapshot.mode = modeRes.mode
+    }
+    if let polRes: RobotPoliciesResult = try? await callRPC("robot.policies", params: EmptyParams(), quiet: true) {
+      snapshot.policies = polRes
     }
     if let healthRes: RobotHealthResult = try? await callRPC("robot.health", params: EmptyParams(), quiet: true) {
       snapshot.health = healthRes
@@ -1118,11 +1123,13 @@ extension DuckSessionClient: DependencyKey {
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC("robot.init", params: EmptyParams())
         try engine.ensureIntentAccepted(res)
+        await engine.refreshSkillsAndPolicies()
       },
       relax: { @MainActor in
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC("robot.relax", params: EmptyParams())
         try engine.ensureIntentAccepted(res)
+        await engine.refreshSkillsAndPolicies()
       },
       rebootMotors: { @MainActor in
         let engine = LiveDuckSessionEngine.shared
@@ -1136,6 +1143,7 @@ extension DuckSessionClient: DependencyKey {
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC("robot.do", params: RobotDoParams(skill: skill))
         try engine.ensureIntentAccepted(res)
+        await engine.refreshSkillsAndPolicies()
       },
       playSound: { @MainActor tag, hold in
         let engine = LiveDuckSessionEngine.shared

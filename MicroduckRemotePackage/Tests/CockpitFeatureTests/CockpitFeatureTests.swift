@@ -88,4 +88,29 @@ import Testing
       expectNoDifference(model.isStandingBackUp, false)
     }
   }
+
+  @Test @MainActor func pullingLeftThumbstickDownMapsIntoBackwardBreakawayBand() async {
+    let recordedMoves = LockIsolated<[RobotMoveParams]>([])
+
+    await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.sendMove = { move in
+        recordedMoves.withValue { $0.append(move) }
+      }
+      $0.duckSession = session
+      $0.haptics = .previewValue
+    } operation: {
+      let model = CockpitModel()
+      model.snapshot = .previewConnected
+
+      // Pulling stick halfway down (y = +0.5 -> vxInput = -0.5) clears velstand's -0.42 dead zone:
+      await model.leftThumbstickMoved(x: 0.0, y: 0.5)
+      await model.leftThumbstickMoved(x: 0.0, y: 1.0)
+
+      expectNoDifference(
+        recordedMoves.value.map { ($0.vx * 1000).rounded() / 1000 },
+        [-0.46, -0.50]
+      )
+    }
+  }
 }

@@ -3,7 +3,8 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-public struct PlayDuckSoundIntent: AppIntent {
+@AppIntent(.tool)
+public struct PlayDuckSoundIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Play Duck Sound"
   public static let description = IntentDescription(
     "Plays an expressive sound on Microduck, such as chirp, greet, inquire, alarm, peck, coo, or a held wheee."
@@ -50,42 +51,48 @@ public struct PlayDuckSoundIntent: AppIntent {
     @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
-    let snapshot = await duckSession.currentSnapshot()
-    let duckName: String
-    if snapshot.controlOpen {
-      duckName = snapshot.phase.connected?.name ?? "Microduck"
-    } else {
-      let identity = try await duckSession.ensureConnected(.seconds(5))
-      duckName = identity.name
-    }
-
     let tag = sound.soundTag
-    guard tag.isHoldable else {
-      await duckSession.playSound(tag, nil)
-      return .result(dialog: "\(duckName) played \(tag.displayName).")
+    var params = [IntentInvocationRecord.ParameterEntry(key: "sound", value: tag.rawValue)]
+    if tag.isHoldable {
+      params.append(.init(key: "holdSeconds", value: holdSeconds.formatted(.number.precision(.fractionLength(0...2)))))
     }
 
-    let clampedSeconds = min(max(holdSeconds, 0.3), 5.0)
-    let hz = DuckConstants.intentHz
-    let tickInterval = Duration.milliseconds(1000 / hz)
-    let totalTicks = max(1, Int((clampedSeconds * Double(hz)).rounded()))
+    let dialogText = try await IntentTelemetryTracer.traceTool(
+      intentName: "PlayDuckSoundIntent",
+      displayTitle: "Play Duck Sound",
+      parameters: params
+    ) { setContext in
+      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(5))
+      setContext(connection.contextLabel)
 
-    do {
-      for _ in 0..<totalTicks {
-        try Task.checkCancellation()
-        await duckSession.playSound(.wheee, true)
-        try await clock.sleep(for: tickInterval)
+      guard tag.isHoldable else {
+        await duckSession.playSound(tag, nil)
+        let message = "\(connection.duckName) played \(tag.displayName)."
+        return (message, message)
       }
-      await duckSession.playSound(.wheee, false)
-    } catch {
-      await duckSession.playSound(.wheee, false)
-      throw error
+
+      let clampedSeconds = min(max(holdSeconds, 0.3), 5.0)
+      let hz = DuckConstants.intentHz
+      let tickInterval = Duration.milliseconds(1000 / hz)
+      let totalTicks = max(1, Int((clampedSeconds * Double(hz)).rounded()))
+
+      do {
+        for _ in 0..<totalTicks {
+          try Task.checkCancellation()
+          await duckSession.playSound(.wheee, true)
+          try await clock.sleep(for: tickInterval)
+        }
+        await duckSession.playSound(.wheee, false)
+      } catch {
+        await duckSession.playSound(.wheee, false)
+        throw error
+      }
+
+      let formattedDuration = clampedSeconds.formatted(.number.precision(.fractionLength(0...1)))
+      let message = "\(connection.duckName) held Wheee for \(formattedDuration) seconds."
+      return (message, message)
     }
 
-    let formattedDuration = clampedSeconds.formatted(.number.precision(.fractionLength(0...1)))
-    return .result(dialog: "\(duckName) held Wheee for \(formattedDuration) seconds.")
+    return .result(dialog: IntentDialog(stringLiteral: dialogText))
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension PlayDuckSoundIntent: ToolIntent, LiveActivityIntent {}

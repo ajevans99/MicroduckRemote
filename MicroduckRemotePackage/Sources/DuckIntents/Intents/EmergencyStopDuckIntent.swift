@@ -3,7 +3,8 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-public struct EmergencyStopDuckIntent: AppIntent {
+@AppIntent(.tool)
+public struct EmergencyStopDuckIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Stop Microduck"
   public static let description = IntentDescription(
     "Immediately halts Microduck's walking movement and cancels any active trick while keeping leg servos upright."
@@ -21,21 +22,20 @@ public struct EmergencyStopDuckIntent: AppIntent {
   public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
-    let snapshot = await duckSession.currentSnapshot()
-    let duckName: String
-    if snapshot.controlOpen {
-      duckName = snapshot.phase.connected?.name ?? "Microduck"
-    } else {
-      let identity = try await duckSession.ensureConnected(.seconds(5))
-      duckName = identity.name
+    let dialogText = try await IntentTelemetryTracer.traceTool(
+      intentName: "EmergencyStopDuckIntent",
+      displayTitle: "Stop Microduck"
+    ) { setContext in
+      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(5))
+      setContext(connection.contextLabel)
+
+      await duckSession.sendMove(.zero)
+      try await duckSession.stop()
+
+      let message = "Stopped \(connection.duckName)."
+      return (message, message)
     }
 
-    await duckSession.sendMove(.zero)
-    try await duckSession.stop()
-
-    return .result(dialog: "Stopped \(duckName).")
+    return .result(dialog: IntentDialog(stringLiteral: dialogText))
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension EmergencyStopDuckIntent: ToolIntent, LiveActivityIntent {}

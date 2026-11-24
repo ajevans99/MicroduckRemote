@@ -12,7 +12,19 @@ public enum DuckConstants {
   public static let officialPolicySetRepo = "pollen-robotics/microduck-policies"
   public static let robotKind = "microduck"
   public static let maxLinearVelocity = 0.3
+  /// `velstand.onnx` (v7/v9) stays in its standing basin until `vx <= -0.42 m/s`.
+  public static let minBackwardBreakawayVelocity = 0.42
+  public static let maxBackwardLinearVelocity = 0.50
   public static let maxAngularVelocity = 1.5
+
+  /// Maps a normalized backward magnitude in `0...1` into the effective backward
+  /// walking band `[minBackwardBreakawayVelocity, maxBackwardLinearVelocity]`.
+  public static func backwardLinearVelocity(magnitude: Double) -> Double {
+    let m = min(max(magnitude, 0.0), 1.0)
+    guard m > 0.01 else { return 0.0 }
+    let span = maxBackwardLinearVelocity - minBackwardBreakawayVelocity
+    return -(minBackwardBreakawayVelocity + m * span)
+  }
   public static let intentHz = 10
   public static let defaultHoldSeconds = 3.0
   public static let jointDeviationFullScaleRadians = 0.20

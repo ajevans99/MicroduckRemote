@@ -87,6 +87,7 @@ import Testing
       session.currentSnapshot = { frozen }
       session.standBackUp = { actions.withValue { $0.append("standBackUp") } }
       $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
     } operation: {
       _ = try await SetDuckPostureIntent(posture: .standUp).perform()
     }
@@ -100,6 +101,7 @@ import Testing
       session.currentSnapshot = { frozen }
       session.setEnabled = { on in actions.withValue { $0.append("setEnabled:\(on)") } }
       $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
     } operation: {
       _ = try await SetDuckPostureIntent(posture: .standUp).perform()
     }
@@ -113,6 +115,7 @@ import Testing
       session.currentSnapshot = { frozen }
       session.performSkill = { name in actions.withValue { $0.append("skill:\(name)") } }
       $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
     } operation: {
       _ = try await SetDuckPostureIntent(posture: .standUp).perform()
     }
@@ -200,5 +203,72 @@ import Testing
         stopOnObstacle: false
       )
     )
+  }
+
+  @Test func standUpPollsUntilRiseTransitionCompletes() async throws {
+    let state = LockIsolated<DuckSessionSnapshot>({
+      var snap = DuckSessionSnapshot.previewConnected
+      snap.policies?.sitting = true
+      snap.latestState?.policy = "sit"
+      return snap
+    }())
+    let refreshCount = LockIsolated(0)
+
+    try await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.currentSnapshot = { state.value }
+      session.performSkill = { _ in
+        state.withValue {
+          $0.policies?.sitting = false
+          $0.latestState?.policy = "rise"
+        }
+      }
+      session.refreshSkills = {
+        let count = refreshCount.withValue {
+          $0 += 1
+          return $0
+        }
+        // First refresh is from ensureConnected (still sitting); second is still rising; third is standing.
+        if count >= 3 {
+          state.withValue {
+            $0.policies?.sitting = false
+            $0.latestState?.policy = "walk"
+          }
+        }
+      }
+      $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
+    } operation: {
+      _ = try await SetDuckPostureIntent(posture: .standUp).perform()
+    }
+
+    expectNoDifference(refreshCount.value, 3)
+    expectNoDifference(state.value.latestState?.policy, "walk")
+    expectNoDifference(state.value.policies?.sitting, false)
+  }
+
+  @Test func moveDuckStepRefreshesLivePoliciesBeforeExecuting() async throws {
+    let events = LockIsolated<[String]>([])
+
+    try await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.refreshSkills = {
+        events.withValue { $0.append("refreshSkills") }
+      }
+      session.performMoveStep = { req in
+        events.withValue { $0.append("performMoveStep") }
+        return DuckMoveStepResult(
+          appliedTwist: req.clampedTwist,
+          elapsedSeconds: req.durationSeconds,
+          pulsesSent: 10,
+          stopReason: .completed
+        )
+      }
+      $0.duckSession = session
+    } operation: {
+      _ = try await MoveDuckStepIntent(direction: .forward, durationSeconds: 1.0, speedPercent: 60).perform()
+    }
+
+    expectNoDifference(events.value, ["refreshSkills", "performMoveStep"])
   }
 }

@@ -81,7 +81,7 @@ import Testing
         "light:true:yellow",
         "look:0.56",
         "sound:inquire:nil",
-        "move:-0.12",
+        "move:-0.45",
         "light:true:green",
         "sound:chirp:nil",
         "skill:roulade",

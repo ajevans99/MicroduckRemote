@@ -24,6 +24,7 @@ struct MicroduckRemoteApp: App {
       $0.huggingFaceAuth = .liveValue
       $0.connectionPreferences = .liveValue
       $0.duckSharedState = .liveValue
+      $0.intentTelemetry = .liveValue
       $0.haptics = .liveValue
       $0.gamepad = .liveValue
       $0.roomScan = .liveValue

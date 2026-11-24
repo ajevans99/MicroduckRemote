@@ -64,8 +64,12 @@ public final class CockpitModel {
     let vyInput = padActive ? -gamepadState.leftX : -leftStickX
     let vyawInput = padActive ? -gamepadState.rightX : -rightStickX
 
+    let vx = vxInput >= 0
+      ? vxInput * DuckConstants.maxLinearVelocity
+      : DuckConstants.backwardLinearVelocity(magnitude: -vxInput)
+
     return RobotMoveParams(
-      vx: vxInput * DuckConstants.maxLinearVelocity,
+      vx: vx,
       vy: vyInput * DuckConstants.maxLinearVelocity,
       vyaw: vyawInput * DuckConstants.maxAngularVelocity
     )

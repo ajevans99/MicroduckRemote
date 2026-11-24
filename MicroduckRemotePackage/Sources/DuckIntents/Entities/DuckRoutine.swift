@@ -3,11 +3,11 @@ import Foundation
 import SwiftUI
 
 /// An ordered, improvised multi-step robot choreography generated directly by Siri AI
-/// (`GenerableEntity`) and rendered as a timeline `CardSnippet` on iOS/macOS 27.3+.
-public struct DuckRoutine: TransientAppEntity, Equatable, Sendable {
+/// (`@AppEntity(.generable)`) and rendered as a timeline `CardSnippet` after execution.
+@AppEntity(.generable)
+public struct DuckRoutine: TransientAppEntity, SnippetRepresentableEntity, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Duck Routine")
 
-  #if os(iOS)
   @Property(
     title: "Routine Title",
     description: "Short playful title for this performance (for example 'Suspicious Peek' or 'Victory Dance')."
@@ -25,16 +25,6 @@ public struct DuckRoutine: TransientAppEntity, Equatable, Sendable {
     description: "Between 2 and 6 ordered expressive steps combining head gaze, vocal sounds, bounded movement, RGB face light, or built-in tricks."
   )
   public var steps: [DuckRoutineStep]
-  #else
-  @Property(title: "Routine Title")
-  public var title: String
-
-  @Property(title: "Mood")
-  public var mood: String
-
-  @Property(title: "Steps")
-  public var steps: [DuckRoutineStep]
-  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     DisplayRepresentation(
@@ -61,10 +51,7 @@ public struct DuckRoutine: TransientAppEntity, Equatable, Sendable {
       && lhs.mood == rhs.mood
       && lhs.steps == rhs.steps
   }
-}
 
-@available(iOS 27.3, macOS 27.3, *)
-extension DuckRoutine: GenerableEntity, SnippetRepresentableEntity {
   public static var snippet: some EntitySnippetContent<Self> {
     CardSnippet(supportedFamilies: [.standard, .compact]) { routine, context in
       DuckRoutineCardView(routine: routine, isCompact: context.family == .compact)
@@ -72,7 +59,7 @@ extension DuckRoutine: GenerableEntity, SnippetRepresentableEntity {
   }
 }
 
-private struct DuckRoutineCardView: View {
+struct DuckRoutineCardView: View {
   let routine: DuckRoutine
   let isCompact: Bool
 

@@ -3,7 +3,8 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-public struct SetDuckPostureIntent: AppIntent {
+@AppIntent(.tool)
+public struct SetDuckPostureIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Set Microduck Posture"
   public static let description = IntentDescription(
     "Changes Microduck's posture idempotently: Stand Up (also recovers if fallen), Sit Down, Stand Back Up (explicit fall recovery), or Home Pose."
@@ -31,58 +32,95 @@ public struct SetDuckPostureIntent: AppIntent {
 
   public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
     @Dependencies.Dependency(\.duckSession) var duckSession
+    @Dependencies.Dependency(\.continuousClock) var clock
 
-    let initial = await duckSession.currentSnapshot()
-    let duckName: String
-    if initial.controlOpen {
-      duckName = initial.phase.connected?.name ?? "Microduck"
-      await duckSession.refreshSkills()
-    } else {
-      let identity = try await duckSession.ensureConnected(.seconds(6))
-      duckName = identity.name
+    let dialogText = try await IntentTelemetryTracer.traceTool(
+      intentName: "SetDuckPostureIntent",
+      displayTitle: "Set Microduck Posture",
+      parameters: [.init(key: "posture", value: posture.rawValue)]
+    ) { setContext in
+      let connection = try await IntentTelemetryTracer.ensureConnected(
+        timeout: .seconds(6),
+        refreshIfOpen: true
+      )
+      setContext(connection.contextLabel)
+
+      let snapshot = await duckSession.currentSnapshot()
+      let isFallen = snapshot.latestState?.safety?.fallen == true
+      let isEnabled = snapshot.policies?.enabled == true
+      let isSitting = snapshot.policies?.sitting == true
+
+      let message: String
+      switch posture {
+      case .standUp:
+        if isFallen {
+          try await duckSession.standBackUp()
+          await Self.waitUntilStanding(duckSession: duckSession, clock: clock)
+          message = "Recovered \(connection.duckName) and stood it back up."
+        } else if !isEnabled {
+          try await duckSession.setEnabled(true)
+          await Self.waitUntilStanding(duckSession: duckSession, clock: clock)
+          message = "\(connection.duckName) is standing up."
+        } else if isSitting {
+          try await duckSession.performSkill("sit_toggle")
+          await Self.waitUntilStanding(duckSession: duckSession, clock: clock)
+          message = "\(connection.duckName) is standing up from its seat."
+        } else {
+          message = "\(connection.duckName) is already standing up."
+        }
+
+      case .sitDown:
+        if isFallen {
+          throw DuckSessionError.duckFallen
+        }
+        if !isEnabled || isSitting {
+          message = "\(connection.duckName) is already sitting down."
+        } else {
+          try await duckSession.performSkill("sit_toggle")
+          await duckSession.refreshSkills()
+          message = "\(connection.duckName) is sitting down."
+        }
+
+      case .recoverFromFall:
+        try await duckSession.standBackUp()
+        await Self.waitUntilStanding(duckSession: duckSession, clock: clock)
+        message = "Standing \(connection.duckName) back up."
+
+      case .initPose:
+        try await duckSession.initPose()
+        message = "Reset \(connection.duckName) to its home pose."
+      }
+
+      return (message, message)
     }
 
-    let snapshot = await duckSession.currentSnapshot()
-    let isFallen = snapshot.latestState?.safety?.fallen == true
-    let isEnabled = snapshot.policies?.enabled == true
-    let isSitting = snapshot.policies?.sitting == true
+    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+  }
 
-    switch posture {
-    case .standUp:
-      if isFallen {
-        try await duckSession.standBackUp()
-        return .result(dialog: "Recovered \(duckName) and stood it back up.")
+  /// Polls `robot.policies` until Microduck finishes its rise/enable transition so a
+  /// chained `MoveDuckStepIntent` sees a standing robot immediately.
+  private static func waitUntilStanding(
+    duckSession: DuckSessionClient,
+    clock: any Clock<Duration>,
+    maxAttempts: Int = 15,
+    pollInterval: Duration = .milliseconds(200)
+  ) async {
+    for attempt in 0..<maxAttempts {
+      if Task.isCancelled { return }
+      await duckSession.refreshSkills()
+      let current = await duckSession.currentSnapshot()
+      let policies = current.policies
+      let activePolicy = current.latestState?.policy
+      let isReadyToWalk = policies?.enabled == true
+        && policies?.sitting != true
+        && activePolicy != "rise"
+        && activePolicy != "sit"
+      if isReadyToWalk {
+        return
       }
-      if !isEnabled {
-        try await duckSession.setEnabled(true)
-        return .result(dialog: "\(duckName) is standing up.")
+      if attempt + 1 < maxAttempts {
+        try? await clock.sleep(for: pollInterval)
       }
-      if isSitting {
-        try await duckSession.performSkill("sit_toggle")
-        return .result(dialog: "\(duckName) is standing up from its seat.")
-      }
-      return .result(dialog: "\(duckName) is already standing up.")
-
-    case .sitDown:
-      if isFallen {
-        throw DuckSessionError.duckFallen
-      }
-      if !isEnabled || isSitting {
-        return .result(dialog: "\(duckName) is already sitting down.")
-      }
-      try await duckSession.performSkill("sit_toggle")
-      return .result(dialog: "\(duckName) is sitting down.")
-
-    case .recoverFromFall:
-      try await duckSession.standBackUp()
-      return .result(dialog: "Standing \(duckName) back up.")
-
-    case .initPose:
-      try await duckSession.initPose()
-      return .result(dialog: "Reset \(duckName) to its home pose.")
     }
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension SetDuckPostureIntent: ToolIntent, LiveActivityIntent {}

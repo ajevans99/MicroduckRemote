@@ -4,7 +4,8 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-public struct DirectDuckGazeIntent: AppIntent {
+@AppIntent(.tool)
+public struct DirectDuckGazeIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Aim Microduck Head"
   public static let description = IntentDescription(
     "Aims Microduck's head and camera toward a horizontal and vertical direction (for example look left, look up at a person, look down at the floor, or center ahead)."
@@ -45,26 +46,28 @@ public struct DirectDuckGazeIntent: AppIntent {
   public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
-    let initial = await duckSession.currentSnapshot()
-    let duckName: String
-    if initial.controlOpen {
-      duckName = initial.phase.connected?.name ?? "Microduck"
-    } else {
-      let identity = try await duckSession.ensureConnected(.seconds(6))
-      duckName = identity.name
+    let dialogText = try await IntentTelemetryTracer.traceTool(
+      intentName: "DirectDuckGazeIntent",
+      displayTitle: "Aim Microduck Head",
+      parameters: [
+        .init(key: "horizontal", value: "\(Int(horizontalPercent.rounded()))%"),
+        .init(key: "vertical", value: "\(Int(verticalPercent.rounded()))%"),
+      ]
+    ) { setContext in
+      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(6))
+      setContext(connection.contextLabel)
+
+      let target = LookGeometry.lookTarget(
+        normalizedX: min(max(horizontalPercent, -100), 100) / 100.0,
+        normalizedY: min(max(verticalPercent, -100), 100) / 100.0
+      )
+      let result = await duckSession.sendLook(target)
+      let message = result?.clamped == true
+        ? "Aimed \(connection.duckName)'s head toward your target (clamped to joint limits)."
+        : "Aimed \(connection.duckName)'s head."
+      return (message, message)
     }
 
-    let target = LookGeometry.lookTarget(
-      normalizedX: min(max(horizontalPercent, -100), 100) / 100.0,
-      normalizedY: min(max(verticalPercent, -100), 100) / 100.0
-    )
-    let result = await duckSession.sendLook(target)
-    if result?.clamped == true {
-      return .result(dialog: "Aimed \(duckName)'s head toward your target (clamped to joint limits).")
-    }
-    return .result(dialog: "Aimed \(duckName)'s head.")
+    return .result(dialog: IntentDialog(stringLiteral: dialogText))
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension DirectDuckGazeIntent: ToolIntent, LiveActivityIntent {}

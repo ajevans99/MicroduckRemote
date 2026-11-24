@@ -73,6 +73,16 @@ import Testing
       sdpMsg,
       .peerSdp(sessionId: "sess-9", sdp: SdpPayload(type: "offer", sdp: "v=0..."))
     )
+
+    let endOfCandidatesJSON = """
+    {"type":"peer","sessionId":"sess-9","ice":{"candidate":"","sdpMLineIndex":0}}
+    """
+    let iceMsg = try SignallingInbound.decode(from: endOfCandidatesJSON)
+    expectNoDifference(
+      iceMsg,
+      .peerIce(sessionId: "sess-9", ice: IceCandidatePayload(candidate: "", sdpMLineIndex: 0))
+    )
+    expectNoDifference(iceMsg[case: \.peerIce]?.ice.isEndOfCandidates, true)
   }
 
   @Test func sseParserHandlesCRLFFramingAndComments() {
@@ -175,6 +185,15 @@ import Testing
       )
     )
     expectNoDifference(request.clampedDurationSeconds, DuckConstants.maxStepDurationSeconds)
+
+    let backwardRequest = DuckMoveStepRequest(vx: -0.9)
+    expectNoDifference(backwardRequest.clampedTwist.vx, -DuckConstants.maxBackwardLinearVelocity)
+    expectNoDifference(DuckConstants.backwardLinearVelocity(magnitude: 0.0), 0.0)
+    expectNoDifference(DuckConstants.backwardLinearVelocity(magnitude: 1.0), -DuckConstants.maxBackwardLinearVelocity)
+    expectNoDifference(
+      abs(DuckConstants.backwardLinearVelocity(magnitude: 0.5) - (-0.46)) < 0.0001,
+      true
+    )
   }
 
   @Test func sharedSummaryCoalescesTelemetryJitterUntilDiscreteStateChanges() {

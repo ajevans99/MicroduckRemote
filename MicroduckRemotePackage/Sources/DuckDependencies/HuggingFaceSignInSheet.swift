@@ -127,42 +127,101 @@ public struct HuggingFaceSignInSheetView: View {
 
   public var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(spacing: 22) {
-          VStack(spacing: 8) {
-            Image(systemName: "person.crop.circle.badge.sparkles")
-              .font(.system(size: 44))
-              .foregroundStyle(Color.accentColor)
-            Text("Sign in with Hugging Face")
-              .font(.title2.weight(.bold))
-            Text("Unlock your published & private Microduck tricks—and reach remote ducks signed into your account.")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .multilineTextAlignment(.center)
-              .padding(.horizontal, 12)
-          }
-          .padding(.top, 8)
-
-          deviceFlowCard
-          pasteTokenCard
-
-          if let err = model.errorMessage {
-            HStack(spacing: 8) {
-              Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-              Text(err)
-                .font(.footnote)
+      Form {
+        Section {
+          if model.isRequestingCode {
+            HStack(spacing: 10) {
+              ProgressView()
+              Text("Requesting verification code…")
                 .foregroundStyle(.secondary)
-              Spacer()
             }
-            .padding(12)
-            .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+          } else if let code = model.deviceCode {
+            HStack {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(code.userCode)
+                  .font(.title2.monospaced().weight(.semibold))
+                  .tracking(2)
+                  .textSelection(.enabled)
+                Text(code.verificationURI)
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+              Spacer()
+              Button(model.codeCopied ? "Copied" : "Copy") {
+                model.copyCodeToClipboard()
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+
+            Button {
+              model.copyCodeToClipboard()
+              if let url = URL(string: code.verificationURI) {
+                openURL(url)
+              }
+            } label: {
+              Label("Copy Code & Open Hugging Face", systemImage: "safari")
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+          } else {
+            Button("Generate Code") {
+              Task { await model.retryDeviceCodeButtonTapped() }
+            }
+          }
+        } header: {
+          HStack {
+            Text("Browser Sign-In")
+            Spacer()
+            if model.isPollingApproval {
+              HStack(spacing: 6) {
+                ProgressView()
+                  .controlSize(.mini)
+                Text("Waiting…")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+        } footer: {
+          Text("Sign in to access your private tricks and connect remotely to ducks on your account.")
+        }
+
+        Section("Access Token") {
+          SecureField("hf_…", text: $model.pastedToken)
+            .autocorrectionDisabled()
+            #if canImport(UIKit)
+            .textInputAutocapitalization(.never)
+            #endif
+
+          Button {
+            Task { await model.verifyTokenButtonTapped() }
+          } label: {
+            if model.isVerifyingToken {
+              ProgressView()
+                .controlSize(.small)
+            } else {
+              Text("Sign In with Token")
+            }
+          }
+          .disabled(model.pastedToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isVerifyingToken)
+        }
+
+        if let err = model.errorMessage {
+          Section {
+            Label(err, systemImage: "exclamationmark.triangle.fill")
+              .font(.footnote)
+              .foregroundStyle(.red)
           }
         }
-        .padding(20)
       }
+      .navigationTitle("Hugging Face")
       #if canImport(UIKit)
       .navigationBarTitleDisplayMode(.inline)
+      #endif
+      #if os(macOS)
+      .formStyle(.grouped)
       #endif
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -176,144 +235,7 @@ public struct HuggingFaceSignInSheetView: View {
       }
     }
     #if os(macOS)
-    .frame(minWidth: 460, idealWidth: 500, minHeight: 500, idealHeight: 560)
+    .frame(minWidth: 440, idealWidth: 480, minHeight: 420, idealHeight: 460)
     #endif
-  }
-
-  private var deviceFlowCard: some View {
-    VStack(spacing: 14) {
-      HStack {
-        Label("Quick Browser Sign-In", systemImage: "safari.fill")
-          .font(.headline)
-        Spacer()
-        if model.isPollingApproval {
-          HStack(spacing: 6) {
-            ProgressView().controlSize(.mini)
-            Text("Waiting…")
-              .font(.caption.weight(.medium))
-              .foregroundStyle(.secondary)
-          }
-        }
-      }
-
-      if model.isRequestingCode {
-        ProgressView("Getting your 8-character code…")
-          .padding(.vertical, 16)
-      } else if let code = model.deviceCode {
-        Text("Open this URL on this phone or any computer and enter the code below:")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
-
-        HStack(spacing: 10) {
-          Image(systemName: "link")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
-          Text(code.verificationURI)
-            .font(.footnote.monospaced())
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .textSelection(.enabled)
-          Spacer(minLength: 4)
-          Button {
-            model.copyURLButtonTapped()
-          } label: {
-            Label(
-              model.urlCopied ? "Copied" : "Copy URL",
-              systemImage: model.urlCopied ? "checkmark" : "doc.on.doc"
-            )
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
-          }
-          .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-        HStack {
-          Text(code.userCode)
-            .font(.system(size: 28, weight: .bold, design: .monospaced))
-            .tracking(3)
-            .textSelection(.enabled)
-          Spacer()
-          Button {
-            model.copyCodeToClipboard()
-          } label: {
-            Label(
-              model.codeCopied ? "Copied" : "Copy Code",
-              systemImage: model.codeCopied ? "checkmark" : "doc.on.doc"
-            )
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
-          }
-          .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-        Button {
-          model.copyCodeToClipboard()
-          if let url = URL(string: code.verificationURI) {
-            openURL(url)
-          }
-        } label: {
-          Label("Copy Code & Open Hugging Face", systemImage: "arrow.up.right.square.fill")
-            .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-      } else {
-        Button {
-          Task { await model.retryDeviceCodeButtonTapped() }
-        } label: {
-          Label("Generate New Code", systemImage: "arrow.clockwise")
-            .font(.subheadline.weight(.semibold))
-        }
-      }
-    }
-    .padding(18)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-  }
-
-  private var pasteTokenCard: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Or Paste an Access Token", systemImage: "key.fill")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
-
-      HStack(spacing: 10) {
-        SecureField("hf_…", text: $model.pastedToken)
-          .textFieldStyle(.roundedBorder)
-          .autocorrectionDisabled()
-          #if canImport(UIKit)
-          .textInputAutocapitalization(.never)
-          #endif
-
-        Button {
-          Task { await model.verifyTokenButtonTapped() }
-        } label: {
-          if model.isVerifyingToken {
-            ProgressView().controlSize(.small)
-              .padding(.horizontal, 8)
-          } else {
-            Text("Sign In")
-              .font(.subheadline.weight(.semibold))
-          }
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(model.pastedToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isVerifyingToken)
-      }
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
   }
 }

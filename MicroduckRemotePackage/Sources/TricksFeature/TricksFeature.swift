@@ -242,76 +242,107 @@ public struct TricksGalleryView: View {
 
   public var body: some View {
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-          if let banner = model.statusBannerMessage {
+      List {
+        if let banner = model.statusBannerMessage {
+          Section {
             HStack(spacing: 10) {
               Image(systemName: model.statusBannerIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                 .foregroundStyle(model.statusBannerIsError ? .orange : .green)
               Text(banner)
-                .font(.footnote.weight(.medium))
+                .font(.footnote)
               Spacer()
               Button {
                 model.statusBannerMessage = nil
               } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
+                  .font(.caption.weight(.semibold))
                   .foregroundStyle(.secondary)
               }
               .buttonStyle(.plain)
             }
-            .padding(12)
-            .background(
-              (model.statusBannerIsError ? Color.orange : Color.green).opacity(0.15),
-              in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
           }
+        }
 
-          installedSkillsSection
+        installedSkillsSection
 
-          huggingFaceAccountSection
-
-          VStack(alignment: .leading, spacing: 12) {
-            HStack {
-              Text("Discover on Hugging Face")
-                .font(.headline)
+        if model.huggingFaceSession == nil {
+          Section {
+            HStack(spacing: 12) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Personal & Private Tricks")
+                  .font(.subheadline.weight(.medium))
+                Text("Sign in with Hugging Face to access your own policies.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
               Spacer()
+              Button("Sign In") {
+                model.signInButtonTapped()
+              }
+              .buttonStyle(.borderedProminent)
+              .buttonBorderShape(.capsule)
+              .controlSize(.small)
             }
-
-            Picker("Scope", selection: $model.filterScope) {
-              ForEach(model.availableScopes) { scope in
-                Text(scope.rawValue).tag(scope)
-              }
-            }
-            .pickerStyle(.segmented)
-
-            if model.isLoadingCatalog, model.catalogPolicies.isEmpty {
-              HStack {
-                Spacer()
-                ProgressView("Loading Microduck tricks from Hugging Face…")
-                  .padding(.vertical, 32)
-                Spacer()
-              }
-            } else if let warning = model.catalogWarning, model.catalogPolicies.isEmpty {
-              ContentUnavailableView(
-                "Could Not Load Hub",
-                systemImage: "wifi.exclamationmark",
-                description: Text(warning)
-              )
-            } else if model.filterScope == .mine, model.filteredTricks.isEmpty {
-              emptyPersonalTricksCard(username: model.huggingFaceSession?.username ?? "you")
-            } else {
-              LazyVStack(spacing: 12) {
-                ForEach(model.filteredTricks) { policy in
-                  trickCard(policy)
-                }
-              }
+          }
+        } else if model.filterScope == .all, !model.myTricks.isEmpty {
+          Section("My Tricks (@\(model.huggingFaceSession?.username ?? ""))") {
+            ForEach(model.myTricks) { policy in
+              trickRow(policy)
             }
           }
         }
-        .padding(16)
+
+        Section {
+          Picker("Scope", selection: $model.filterScope) {
+            ForEach(model.availableScopes) { scope in
+              Text(scope.rawValue).tag(scope)
+            }
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          .listRowBackground(Color.clear)
+          .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+          if model.isLoadingCatalog, model.catalogPolicies.isEmpty {
+            HStack {
+              Spacer()
+              ProgressView("Loading tricks…")
+                .padding(.vertical, 24)
+              Spacer()
+            }
+          } else if let warning = model.catalogWarning, model.catalogPolicies.isEmpty {
+            ContentUnavailableView(
+              "Couldn’t Load Hub",
+              systemImage: "wifi.exclamationmark",
+              description: Text(warning)
+            )
+          } else if model.filterScope == .mine, model.filteredTricks.isEmpty {
+            ContentUnavailableView(
+              "No Personal Tricks",
+              systemImage: "sparkles",
+              description: Text("Publish an ONNX policy under @\(model.huggingFaceSession?.username ?? "you") on Hugging Face.")
+            )
+          } else if model.filteredTricks.isEmpty {
+            ContentUnavailableView.search(text: model.searchQuery)
+          } else {
+            ForEach(model.filteredTricks) { policy in
+              trickRow(policy)
+            }
+          }
+        } header: {
+          Text("Discover")
+        }
       }
-      .navigationTitle("Duck Tricks")
-      .searchable(text: $model.searchQuery, prompt: "Search hops, bows, kicks…")
+      #if canImport(UIKit)
+      .listStyle(.insetGrouped)
+      #else
+      .listStyle(.inset)
+      #endif
+      .navigationTitle("Tricks")
+      .searchable(text: $model.searchQuery, prompt: "Search tricks")
+      .refreshable {
+        await model.refreshCatalogButtonTapped()
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           if let session = model.huggingFaceSession {
@@ -319,12 +350,12 @@ public struct TricksGalleryView: View {
               Button {
                 model.filterScope = .mine
               } label: {
-                Label("Show My Tricks", systemImage: "sparkles.rectangle.stack")
+                Label("My Tricks", systemImage: "sparkles")
               }
               Button {
                 Task { await model.refreshCatalogButtonTapped() }
               } label: {
-                Label("Refresh Tricks", systemImage: "arrow.clockwise")
+                Label("Refresh", systemImage: "arrow.clockwise")
               }
               Divider()
               Button(role: .destructive) {
@@ -333,15 +364,12 @@ public struct TricksGalleryView: View {
                 Label("Sign Out (@\(session.username))", systemImage: "rectangle.portrait.and.arrow.right")
               }
             } label: {
-              Label("@\(session.username)", systemImage: "person.crop.circle.fill.badge.checkmark")
-                .font(.footnote.weight(.semibold))
+              Label("@\(session.username)", systemImage: "person.crop.circle.fill")
+                .font(.footnote.weight(.medium))
             }
           } else {
-            Button {
+            Button("Sign In") {
               model.signInButtonTapped()
-            } label: {
-              Label("Sign In", systemImage: "person.crop.circle.badge.plus")
-                .font(.footnote.weight(.semibold))
             }
           }
         }
@@ -363,211 +391,122 @@ public struct TricksGalleryView: View {
     }
   }
 
-  @ViewBuilder
-  private var huggingFaceAccountSection: some View {
-    if let session = model.huggingFaceSession {
-      if model.filterScope == .all {
-        VStack(alignment: .leading, spacing: 10) {
-          HStack {
-            Label("My Tricks (@\(session.username))", systemImage: "person.crop.circle.fill")
-              .font(.headline)
-            Spacer()
-            if !model.myTricks.isEmpty {
-              Text("\(model.myTricks.count)")
-                .font(.caption.weight(.bold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Color.accentColor.opacity(0.2), in: Capsule())
-                .foregroundStyle(Color.accentColor)
-            }
-          }
-          if model.myTricks.isEmpty {
-            emptyPersonalTricksCard(username: session.username)
-          } else {
-            LazyVStack(spacing: 12) {
-              ForEach(model.myTricks) { policy in
-                trickCard(policy)
-              }
-            }
-          }
-        }
-      }
-    } else {
-      HStack(spacing: 12) {
-        Image(systemName: "person.crop.circle.badge.sparkles")
-          .font(.title2)
-          .foregroundStyle(Color.accentColor)
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Have Your Own Tricks?")
-            .font(.subheadline.weight(.semibold))
-          Text("Sign in with Hugging Face to view your personal & private policies.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-        Button {
-          model.signInButtonTapped()
-        } label: {
-          Text("Sign In")
-            .font(.footnote.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.accentColor, in: Capsule())
-            .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-      }
-      .padding(14)
-      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-  }
-
-  private func emptyPersonalTricksCard(username: String) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text("No Microduck policies published under @\(username) yet.")
-        .font(.subheadline.weight(.medium))
-      Text("Publish any trained .onnx policy from microduck_rl with:")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text("uv run publish --onnx output.onnx --repo \(username)/microduck-my-trick")
-        .font(.caption2.monospaced())
-        .foregroundStyle(.secondary)
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-    .padding(14)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-  }
-
   private var installedSkillsSection: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Text("On Your Duck")
-          .font(.headline)
-        Spacer()
-        Text(model.snapshot.controlOpen ? "Ready" : "Offline")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(model.snapshot.controlOpen ? .green : .secondary)
-      }
-
+    Section {
       ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
           ForEach(model.snapshot.skillNames, id: \.self) { name in
             let summary = model.snapshot.installedSkills[id: name]
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
               Button {
                 Task { await model.runInstalledSkillButtonTapped(name) }
               } label: {
-                HStack(spacing: 6) {
-                  Image(systemName: "play.circle.fill")
-                    .foregroundStyle(Color.accentColor)
-                  Text(name.replacingOccurrences(of: "_", with: " ").capitalized)
-                    .font(.subheadline.weight(.semibold))
-                }
+                Label(
+                  name.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").capitalized,
+                  systemImage: "play.fill"
+                )
+                .font(.footnote.weight(.medium))
               }
-              .buttonStyle(.plain)
+              .buttonStyle(.bordered)
+              .buttonBorderShape(.capsule)
+              .controlSize(.small)
               .disabled(!model.snapshot.controlOpen || model.busyPolicyKey != nil)
 
               if summary?.overridden == true {
-                Button {
+                Button(role: .destructive) {
                   Task { await model.removeInstalledSkillButtonTapped(name) }
                 } label: {
                   Image(systemName: "xmark.circle.fill")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .disabled(!model.snapshot.controlOpen || model.busyPolicyKey != nil)
               }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(.regularMaterial, in: Capsule())
           }
         }
+        .padding(.vertical, 2)
+      }
+    } header: {
+      HStack {
+        Text("On Your Duck")
+        Spacer()
+        Text(model.snapshot.controlOpen ? "Ready" : "Offline")
+          .font(.caption)
+          .foregroundStyle(model.snapshot.controlOpen ? .green : .secondary)
+          .textCase(nil)
       }
     }
   }
 
-  private func trickCard(_ policy: HubPolicy) -> some View {
+  private func trickRow(_ policy: HubPolicy) -> some View {
     let isThisBusy = model.busyPolicyKey == policy.key
-    return VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top) {
-        VStack(alignment: .leading, spacing: 4) {
-          HStack(spacing: 6) {
-            Text(policy.name)
-              .font(.headline)
-            if model.isOwnedBySignedInUser(policy) {
-              Text("Yours")
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.green.opacity(0.22), in: Capsule())
-                .foregroundStyle(.green)
-            }
-            if policy.official {
-              Text("Official")
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.accentColor.opacity(0.2), in: Capsule())
-                .foregroundStyle(Color.accentColor)
-            }
-            if let variant = policy.forRobot {
-              Text(variant)
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.orange.opacity(0.2), in: Capsule())
-                .foregroundStyle(.orange)
-            }
-          }
-          Text("by \(policy.authorName) · \(policy.durationLabel)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-        if policy.likes > 0 {
-          Label("\(policy.likes)", systemImage: "heart.fill")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.pink)
-        }
-      }
+    return HStack(alignment: .center, spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 6) {
+          Text(policy.name)
+            .font(.body.weight(.medium))
 
-      if let desc = policy.description, !desc.isEmpty {
-        Text(desc)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-      }
-
-      HStack {
-        if isThisBusy, let stage = model.activeStage {
-          HStack(spacing: 8) {
-            ProgressView()
-              .controlSize(.small)
-            Text(stage.rawValue)
-              .font(.footnote.weight(.semibold))
+          if model.isOwnedBySignedInUser(policy) {
+            Text("Yours")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.green)
+          } else if policy.official {
+            Image(systemName: "checkmark.seal.fill")
+              .font(.caption)
               .foregroundStyle(Color.accentColor)
           }
-        } else {
-          Button {
-            Task { await model.installAndPerformButtonTapped(policy) }
-          } label: {
-            Label("Put on Duck & Do It", systemImage: "arrow.down.circle.fill")
-              .font(.subheadline.weight(.semibold))
-              .padding(.horizontal, 14)
-              .padding(.vertical, 8)
-              .background(Color.accentColor, in: Capsule())
-              .foregroundStyle(.white)
+
+          if let variant = policy.forRobot {
+            Text(variant)
+              .font(.caption2.weight(.medium))
+              .foregroundStyle(.orange)
           }
-          .buttonStyle(.plain)
-          .disabled(model.busyPolicyKey != nil)
         }
-        Spacer()
+
+        if let desc = policy.description, !desc.isEmpty {
+          Text(desc)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+
+        HStack(spacing: 6) {
+          Text(policy.authorName)
+          Text("·")
+          Text(policy.durationLabel)
+          if policy.likes > 0 {
+            Text("·")
+            Label("\(policy.likes)", systemImage: "heart")
+              .labelStyle(.titleAndIcon)
+          }
+        }
+        .font(.caption)
+        .foregroundStyle(.tertiary)
+      }
+
+      Spacer(minLength: 8)
+
+      if isThisBusy, let stage = model.activeStage {
+        VStack(alignment: .trailing, spacing: 4) {
+          ProgressView()
+            .controlSize(.small)
+          Text(stage.rawValue)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        Button("Install") {
+          Task { await model.installAndPerformButtonTapped(policy) }
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(model.busyPolicyKey != nil)
       }
     }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    .padding(.vertical, 4)
   }
 }
 

@@ -47,61 +47,32 @@ public struct ThumbstickPadView: View {
 
         ZStack {
           Circle()
-            .fill(.ultraThinMaterial)
+            .fill(.regularMaterial)
             .overlay(
               Circle()
                 .strokeBorder(
-                  isDeflected ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.14),
-                  lineWidth: isDeflected ? 1.75 : 1
+                  isDeflected ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.10),
+                  lineWidth: isDeflected ? 1.5 : 1
                 )
             )
-            .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
 
-          if mode == .omnidirectional {
-            Circle()
-              .strokeBorder(Color.primary.opacity(0.07), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-              .padding(diameter * 0.22)
-
-            Path { path in
-              path.move(to: CGPoint(x: diameter / 2, y: 14))
-              path.addLine(to: CGPoint(x: diameter / 2, y: diameter - 14))
-              path.move(to: CGPoint(x: 14, y: diameter / 2))
-              path.addLine(to: CGPoint(x: diameter - 14, y: diameter / 2))
-            }
-            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-          } else {
+          if mode == .horizontalOnly {
             Capsule()
-              .fill(Color.primary.opacity(0.07))
-              .frame(width: diameter - 28, height: 8)
-            HStack {
-              Image(systemName: "arrow.counterclockwise")
-              Spacer()
-              Image(systemName: "arrow.clockwise")
-            }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary.opacity(0.7))
-            .padding(.horizontal, 18)
+              .fill(Color.primary.opacity(0.08))
+              .frame(width: diameter - 32, height: 6)
+          } else {
+            Circle()
+              .fill(Color.primary.opacity(0.08))
+              .frame(width: 6, height: 6)
           }
 
           Circle()
-            .fill(
-              LinearGradient(
-                colors: isDeflected
-                  ? [Color.accentColor, Color.accentColor.opacity(0.78)]
-                  : [Color.white.opacity(0.92), Color.white.opacity(0.65)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-              )
-            )
-            .overlay(
-              Circle()
-                .strokeBorder(.white.opacity(0.65), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
+            .fill(isDeflected ? Color.accentColor : Color.white)
+            .shadow(color: .black.opacity(0.16), radius: 6, y: 3)
             .frame(width: knobSize, height: knobSize)
             .offset(x: knobOffsetX, y: knobOffsetY)
-            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.75), value: normalizedX)
-            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.75), value: normalizedY)
+            .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.78), value: normalizedX)
+            .animation(.interactiveSpring(response: 0.16, dampingFraction: 0.78), value: normalizedY)
         }
         .frame(width: diameter, height: diameter)
         .position(x: proxy.size.width / 2, y: proxy.size.height / 2)

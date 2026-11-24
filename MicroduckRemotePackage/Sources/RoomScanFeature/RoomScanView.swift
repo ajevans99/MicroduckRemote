@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 public struct RoomScanView: View {
   @Bindable var model: RoomScanModel
+  @State private var showTips = false
+  @State private var showCLIHelp = false
 
   public init(model: RoomScanModel) {
     self.model = model
@@ -21,7 +23,7 @@ public struct RoomScanView: View {
       case .review:
         NavigationStack {
           reviewAndExportScreen
-            .navigationTitle("MJCF Scene")
+            .navigationTitle("Scene")
             .toolbar {
               ToolbarItem(placement: .navigation) {
                 Button {
@@ -34,7 +36,7 @@ public struct RoomScanView: View {
                 Button {
                   model.inspectXMLButtonTapped()
                 } label: {
-                  Label("XML", systemImage: "chevron.left.forwardslash.chevron.right")
+                  Label("Inspect XML", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
               }
             }
@@ -71,161 +73,123 @@ public struct RoomScanView: View {
   }
 
   private var idleScreen: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 18) {
-        capabilityBannerCard
+    List {
+      if let errorMessage = model.errorMessage {
+        Section {
+          Label(errorMessage, systemImage: "exclamationmark.octagon.fill")
+            .font(.footnote)
+            .foregroundStyle(.red)
+        }
+      }
 
+      Section {
         if model.canStartHardwareScan {
-          readyToScanCard
+          VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("LiDAR Room Capture")
+                .font(.headline)
+              Text("Scan one or more connected rooms with RoomPlan to generate a MuJoCo scene for Microduck.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            Button {
+              Task { await model.startScanButtonTapped() }
+            } label: {
+              Label("Start LiDAR Scan", systemImage: "arkit")
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+          }
+          .padding(.vertical, 4)
         } else if model.needsPermissionRequest {
-          permissionRequestCard
+          VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Camera Permission Required")
+                .font(.headline)
+              Text("RoomPlan uses your camera and LiDAR on-device. Nothing is uploaded.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            Button {
+              Task { await model.requestCameraPermissionButtonTapped() }
+            } label: {
+              Label("Allow Camera & Start Scan", systemImage: "camera")
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(model.isRequestingPermission)
+          }
+          .padding(.vertical, 4)
         } else if model.isPermissionDeniedOrRestricted {
-          permissionDeniedCard
+          VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Camera Access Disabled")
+                .font(.headline)
+              Text("Enable Camera access in Settings to scan rooms with LiDAR.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+              Button("Open Settings") {
+                Task { await model.openSettingsButtonTapped() }
+              }
+              .buttonStyle(.borderedProminent)
+
+              Button("Recheck") {
+                model.refreshCapabilities()
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+          .padding(.vertical, 4)
+        } else {
+          VStack(alignment: .leading, spacing: 10) {
+            Label(model.deviceSupport.title, systemImage: "arkit")
+              .font(.headline)
+            Text(model.deviceSupport.message)
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+            Button("Preview Sample Apartment") {
+              model.loadSampleApartmentButtonTapped()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+          }
+          .padding(.vertical, 4)
+        }
+      }
+
+      syncedScenesSection
+
+      Section {
+        if model.deviceSupport.isSupported {
+          Button {
+            model.loadSampleApartmentButtonTapped()
+          } label: {
+            Label("Preview Sample Apartment", systemImage: "building.2")
+          }
         }
 
-        scanningWorkflowGuideCard
-
-        sampleSceneCard
-
-        syncedScenesCard
-
-        if let errorMessage = model.errorMessage {
-          errorCard(errorMessage)
+        DisclosureGroup("Scanning Tips", isExpanded: $showTips) {
+          Label("Open interior doors first so Microduck can walk between rooms.", systemImage: "door.left.hand.open")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+          Label("For multi-room scans, tap Add Room while keeping the doorway in view.", systemImage: "plus.square.on.square")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+          Label("Scan one floor per simulator scene.", systemImage: "square.stack.3d.up")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
       }
-      .padding()
     }
-  }
-
-  private var capabilityBannerCard: some View {
-    HStack(alignment: .top, spacing: 14) {
-      Image(systemName: model.deviceSupport.isSupported ? "cube.transparent.fill" : "exclamationmark.triangle.fill")
-        .font(.title2)
-        .foregroundStyle(model.deviceSupport.isSupported ? .cyan : .orange)
-        .frame(width: 34)
-
-      VStack(alignment: .leading, spacing: 6) {
-        Text(model.deviceSupport.title)
-          .font(.headline)
-        Text(model.deviceSupport.message)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var readyToScanCard: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Scan Room or Floor Plan")
-        .font(.headline)
-      Text("Captures walls, open doorways, floor elevation, and furniture on-device with Apple RoomPlan, then exports a ready-to-run MuJoCo MJCF XML scene for Microduck.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-
-      Button {
-        Task { await model.startScanButtonTapped() }
-      } label: {
-        Label("Start Camera + LiDAR Scan", systemImage: "camera.metering.matrix")
-          .font(.headline)
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, 6)
-      }
-      .buttonStyle(.borderedProminent)
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var permissionRequestCard: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Label("Camera & LiDAR Permission Needed", systemImage: "camera.badge.ellipsis")
-        .font(.headline)
-      Text("RoomPlan uses your iPhone camera together with the LiDAR scanner locally on-device to detect walls, doorways, and furniture. No images or room meshes are uploaded.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-
-      Button {
-        Task { await model.requestCameraPermissionButtonTapped() }
-      } label: {
-        Label("Allow Camera Access & Start Scan", systemImage: "checkmark.shield.fill")
-          .font(.headline)
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, 6)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(model.isRequestingPermission)
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var permissionDeniedCard: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Label("Camera Access Disabled", systemImage: "lock.shield")
-        .font(.headline)
-        .foregroundStyle(.orange)
-      Text("Enable Camera access for Microduck in iOS Settings to scan rooms with LiDAR and RoomPlan.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-
-      HStack(spacing: 12) {
-        Button {
-          Task { await model.openSettingsButtonTapped() }
-        } label: {
-          Label("Open Settings", systemImage: "gear")
-            .fontWeight(.semibold)
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-
-        Button {
-          model.refreshCapabilities()
-        } label: {
-          Label("Recheck", systemImage: "arrow.clockwise")
-        }
-        .buttonStyle(.bordered)
-      }
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var scanningWorkflowGuideCard: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Single-Room & Multi-Room Tips", systemImage: "map")
-        .font(.headline)
-      guideBullet(icon: "door.left.hand.open", text: "Open interior doors before scanning so doorways are carved open for Microduck.")
-      guideBullet(icon: "point.topleft.down.to.point.bottomright.curvepath", text: "For multiple rooms on the same floor, scan Room 1, tap Add Connected Room, and walk continuously through the open doorway so the shared ARSession keeps rooms aligned.")
-      guideBullet(icon: "stairs", text: "Multi-story scans keep the primary floor at z = 0; scan one floor per simulator scene.")
-    }
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var sampleSceneCard: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Preview Exporter Without LiDAR", systemImage: "doc.badge.gearshape")
-        .font(.headline)
-      Text("Load a sample 2-room apartment to inspect doorway carving, collision boxes, duck spawn placement, and XML export.")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-
-      Button {
-        model.loadSampleApartmentButtonTapped()
-      } label: {
-        Label("Load Sample 2-Room Apartment", systemImage: "building.2.crop.circle")
-          .fontWeight(.semibold)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.bordered)
-    }
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    #if canImport(UIKit)
+    .listStyle(.insetGrouped)
+    #else
+    .listStyle(.inset)
+    #endif
   }
 
   private var scanningOverlayScreen: some View {
@@ -234,60 +198,53 @@ public struct RoomScanView: View {
         .ignoresSafeArea()
 
       VStack {
-        VStack(spacing: 8) {
-          HStack(spacing: 12) {
-            Label("Room \(model.liveProgress.currentRoomNumber)", systemImage: "cube.transparent.fill")
-              .font(.subheadline.weight(.bold))
-              .foregroundStyle(.cyan)
+        VStack(spacing: 6) {
+          HStack(spacing: 10) {
+            Label("Room \(model.liveProgress.currentRoomNumber)", systemImage: "arkit")
+              .font(.subheadline.weight(.semibold))
 
             if model.liveProgress.completedRoomCount > 0 {
               Text("\(model.liveProgress.completedRoomCount) saved")
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(.green.opacity(0.25), in: Capsule())
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.green)
             }
 
             Spacer()
 
             Text("\(model.liveProgress.liveWallCount)W · \(model.liveProgress.liveDoorwayCount)D · \(model.liveProgress.liveObjectCount)F")
-              .font(.caption.monospacedDigit().weight(.semibold))
-              .foregroundStyle(.white.opacity(0.9))
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.secondary)
           }
 
           if let coaching = model.liveProgress.coachingInstruction {
             Text(coaching)
-              .font(.footnote.weight(.medium))
-              .foregroundStyle(.white)
+              .font(.footnote)
               .frame(maxWidth: .infinity, alignment: .leading)
           }
 
           if let statusBanner = model.liveProgress.statusBanner {
             Text(statusBanner)
               .font(.caption)
-              .foregroundStyle(.yellow)
+              .foregroundStyle(.orange)
               .frame(maxWidth: .infinity, alignment: .leading)
           }
         }
         .padding(14)
-        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal)
         .padding(.top, 8)
 
         Spacer()
 
         if model.liveProgress.isProcessingRoom {
-          HStack(spacing: 10) {
+          HStack(spacing: 8) {
             ProgressView()
-              .tint(.white)
-            Text("Processing RoomPlan geometry on-device…")
+            Text("Processing geometry…")
               .font(.subheadline.weight(.medium))
-              .foregroundStyle(.white)
           }
-          .padding(.horizontal, 18)
-          .padding(.vertical, 12)
-          .background(.black.opacity(0.78), in: Capsule())
+          .padding(.horizontal, 16)
+          .padding(.vertical, 10)
+          .background(.ultraThinMaterial, in: Capsule())
           .padding(.bottom, 8)
         }
 
@@ -296,39 +253,34 @@ public struct RoomScanView: View {
             Button {
               model.addNextRoomButtonTapped()
             } label: {
-              Label("Add Connected Room", systemImage: "plus.square.on.square")
-                .font(.subheadline.weight(.semibold))
+              Label("Add Room", systemImage: "plus")
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
-            .tint(.white)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
             .disabled(model.liveProgress.isProcessingRoom)
 
             Button {
               model.finishScanButtonTapped()
             } label: {
-              Label("Finish & Build XML", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.bold))
+              Label("Finish", systemImage: "checkmark")
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.cyan)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
             .disabled(model.liveProgress.isProcessingRoom)
           }
 
-          Button(role: .cancel) {
+          Button("Cancel", role: .cancel) {
             model.cancelScanButtonTapped()
-          } label: {
-            Text("Cancel Scan")
-              .font(.footnote.weight(.semibold))
-              .foregroundStyle(.white.opacity(0.85))
           }
+          .font(.footnote.weight(.medium))
           .disabled(model.liveProgress.isProcessingRoom)
         }
         .padding(14)
-        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .padding(.horizontal)
         .padding(.bottom, 12)
       }
@@ -336,392 +288,231 @@ public struct RoomScanView: View {
   }
 
   private var reviewAndExportScreen: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
-        if let toast = model.statusToast {
-          HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-              .foregroundStyle(.green)
-            Text(toast)
-              .font(.footnote.weight(.semibold))
-          }
-          .padding(.horizontal, 12)
-          .padding(.vertical, 8)
-          .background(.green.opacity(0.14), in: Capsule())
+    List {
+      if let toast = model.statusToast {
+        Section {
+          Label(toast, systemImage: "checkmark.circle.fill")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.green)
         }
+      }
 
-        if let errorMessage = model.errorMessage {
-          errorCard(errorMessage)
+      if let errorMessage = model.errorMessage {
+        Section {
+          Label(errorMessage, systemImage: "exclamationmark.octagon.fill")
+            .font(.footnote)
+            .foregroundStyle(.red)
         }
+      }
 
-        if let result = model.exportResult {
+      if let result = model.exportResult {
+        Section {
           FloorPlanPreviewCanvas(preview: result.preview)
-            .frame(height: 270)
+            .frame(height: 250)
+            .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
 
-          metricsSummaryGrid(result.summary, source: model.currentCapture?.source)
+          HStack {
+            compactStat(title: "Rooms", value: "\(result.summary.roomCount)")
+            Divider()
+            compactStat(title: "Doors", value: "\(result.summary.openDoorwayCount)")
+            Divider()
+            compactStat(title: "Objects", value: "\(result.summary.furnitureCount)")
+            Divider()
+            compactStat(
+              title: "Size",
+              value: String(format: "%.1f×%.1fm", result.summary.footprintWidthMeters, result.summary.footprintDepthMeters)
+            )
+          }
+          .padding(.vertical, 4)
+        } footer: {
+          if let source = model.currentCapture?.source {
+            Text(source.summaryLabel)
+          }
+        }
 
-          if !result.summary.warnings.isEmpty {
-            warningsCard(result.summary.warnings)
+        if !result.summary.warnings.isEmpty {
+          Section("Notes") {
+            ForEach(Array(result.summary.warnings.enumerated()), id: \.offset) { _, note in
+              Label(note, systemImage: "info.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+
+        Section {
+          Button {
+            Task { await model.saveToICloudButtonTapped() }
+          } label: {
+            HStack {
+              if model.isSyncingToICloud {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Image(systemName: model.iCloudAvailability.isConnected ? "icloud.and.arrow.up" : "folder.badge.gearshape")
+              }
+              Text(
+                model.iCloudAvailability.connectedFolderName.map { "Save to iCloud Drive (\($0))" }
+                  ?? "Choose iCloud Folder & Save"
+              )
+              .fontWeight(.semibold)
+            }
+          }
+          .disabled(model.isSyncingToICloud)
+
+          Button {
+            model.exportToFilesButtonTapped()
+          } label: {
+            Label("Save XML to Files…", systemImage: "folder.badge.plus")
           }
 
-          exportActionsCard(result)
+          if let shareFileURL = model.shareFileURL {
+            ShareLink(item: shareFileURL) {
+              Label("Share / AirDrop XML", systemImage: "square.and.arrow.up")
+            }
+          }
+        } header: {
+          Text("Export")
+        } footer: {
+          Text(result.configuration.fileName)
+            .font(.caption2.monospaced())
+        }
 
-          syncedScenesCard
+        Section("Options") {
+          LabeledContent("Name") {
+            TextField("my_apartment", text: $model.exportConfiguration.sceneName)
+              .multilineTextAlignment(.trailing)
+              .autocorrectionDisabled()
+              #if canImport(UIKit)
+              .textInputAutocapitalization(.never)
+              #endif
+          }
 
-          configurationCard(result)
+          Picker("Doorways", selection: $model.exportConfiguration.doorPolicy) {
+            ForEach(DoorExportPolicy.allCases) { policy in
+              Text(policy.label).tag(policy)
+            }
+          }
 
-          simulatorInstructionsCard(result.configuration)
+          Toggle("Furniture Collisions", isOn: $model.exportConfiguration.includeFurniture)
+          Toggle("Floor Textures", isOn: $model.exportConfiguration.includeFloorOverlays)
+          Toggle("Align Walls to Axes", isOn: $model.exportConfiguration.alignDominantWallAxis)
+          Toggle("Auto-Clear Spawn Point", isOn: $model.exportConfiguration.autoClearSpawnOrigin)
+        }
+
+        syncedScenesSection
+
+        Section {
+          DisclosureGroup("Manual Simulator Command", isExpanded: $showCLIHelp) {
+            HStack {
+              Text(result.configuration.duckSimCommand)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+              Spacer()
+              Button {
+                model.copyLaunchCommandButtonTapped()
+              } label: {
+                Image(systemName: "doc.on.doc")
+              }
+              .buttonStyle(.borderless)
+            }
+          }
         }
       }
-      .padding()
     }
+    #if canImport(UIKit)
+    .listStyle(.insetGrouped)
+    #else
+    .listStyle(.inset)
+    #endif
   }
 
-  private func metricsSummaryGrid(
-    _ summary: MJCFExportSummary,
-    source: ScannedStructureSource?
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      if let source {
-        Text(source.summaryLabel)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-      }
-      LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-        metricTile(title: "Rooms", value: "\(summary.roomCount)")
-        metricTile(title: "Wall Boxes", value: "\(summary.wallSegmentCount)")
-        metricTile(title: "Open Doors", value: "\(summary.openDoorwayCount)")
-        metricTile(title: "Furniture", value: "\(summary.furnitureCount)")
-        metricTile(
-          title: "Footprint",
-          value: String(format: "%.1f×%.1fm", summary.footprintWidthMeters, summary.footprintDepthMeters)
-        )
-        metricTile(
-          title: "Spawn Clear",
-          value: String(format: "%.2fm", summary.spawnClearanceMeters)
-        )
-      }
-    }
-    .padding(14)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private func metricTile(title: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 3) {
+  private func compactStat(title: String, value: String) -> some View {
+    VStack(spacing: 2) {
       Text(value)
-        .font(.headline.monospacedDigit())
+        .font(.subheadline.monospacedDigit().weight(.semibold))
       Text(title)
         .font(.caption2)
         .foregroundStyle(.secondary)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(10)
-    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    .frame(maxWidth: .infinity)
   }
 
-  private func warningsCard(_ warnings: [String]) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Label("Scan Notes", systemImage: "info.circle.fill")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.orange)
-      ForEach(Array(warnings.enumerated()), id: \.offset) { _, note in
-        Text("• \(note)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .padding(14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private func exportActionsCard(_ result: MJCFExportResult) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
+  private var syncedScenesSection: some View {
+    Section {
       HStack {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(result.configuration.fileName)
-            .font(.headline.monospaced())
-          Text("Includes robot_groundcontact_backlash.xml + 35-DOF keyframes")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-      }
-
-      Button {
-        Task { await model.saveToICloudButtonTapped() }
-      } label: {
-        HStack(spacing: 8) {
-          if model.isSyncingToICloud {
-            ProgressView()
-          } else {
-            Image(systemName: model.iCloudAvailability.isConnected ? "icloud.and.arrow.up" : "folder.badge.gearshape")
-          }
-          if let folderName = model.iCloudAvailability.connectedFolderName {
-            Text("Save to iCloud Drive (\(folderName))")
-              .font(.subheadline.weight(.semibold))
-          } else {
-            Text("Choose iCloud Folder & Save")
-              .font(.subheadline.weight(.semibold))
-          }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(model.isSyncingToICloud)
-
-      if !model.iCloudAvailability.isConnected {
-        Text("Pick your \"\(ICloudSceneSyncConstants.recommendedFolderName)\" folder in iCloud Drive once so scans sync straight to your Mac simulator.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-
-      HStack(spacing: 10) {
-        Button {
-          model.exportToFilesButtonTapped()
-        } label: {
-          Label("Save XML to Files", systemImage: "folder.badge.plus")
-            .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.bordered)
-
-        if let shareFileURL = model.shareFileURL {
-          ShareLink(item: shareFileURL) {
-            Label("AirDrop / Share", systemImage: "square.and.arrow.up")
-              .font(.subheadline.weight(.semibold))
-              .frame(maxWidth: .infinity)
-              .padding(.vertical, 6)
-          }
-          .buttonStyle(.bordered)
-        }
-      }
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private var syncedScenesCard: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Label("Synced Scenes (iCloud Drive)", systemImage: "icloud")
-          .font(.headline)
-        Spacer()
-        Button {
-          Task { await model.refreshSyncedScenes() }
-        } label: {
-          if model.isLoadingSyncedScenes {
-            ProgressView()
-              .controlSize(.small)
-          } else {
-            Image(systemName: "arrow.clockwise")
-          }
-        }
-        .buttonStyle(.borderless)
-        .disabled(model.isLoadingSyncedScenes)
-      }
-
-      HStack(spacing: 8) {
         if let folderName = model.iCloudAvailability.connectedFolderName {
-          Label("Connected: \(folderName)", systemImage: "checkmark.icloud")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.cyan)
+          Label(folderName, systemImage: "icloud")
+            .font(.subheadline)
           Spacer()
           Button("Change") {
             model.chooseSyncedFolderButtonTapped()
           }
-          .font(.caption.weight(.semibold))
-          .buttonStyle(.bordered)
-          .controlSize(.small)
+          .font(.footnote)
         } else {
-          Text("Select \"\(ICloudSceneSyncConstants.recommendedFolderName)\" in iCloud Drive to sync with macOS.")
-            .font(.caption)
+          Text("Choose iCloud Drive folder")
+            .font(.subheadline)
             .foregroundStyle(.secondary)
           Spacer()
-          Button("Choose Folder") {
+          Button("Choose…") {
             model.chooseSyncedFolderButtonTapped()
           }
-          .font(.caption.weight(.semibold))
-          .buttonStyle(.borderedProminent)
-          .controlSize(.small)
+          .font(.footnote.weight(.medium))
         }
       }
 
       if model.syncedScenes.isEmpty {
-        Text("No synced scans yet. Save a scanned room to your iCloud Drive folder to access it automatically in the macOS Microduck Simulator tab.")
-          .font(.caption)
+        Text("No synced scenes yet.")
+          .font(.footnote)
           .foregroundStyle(.secondary)
       } else {
-        VStack(spacing: 8) {
-          ForEach(model.syncedScenes) { record in
-            HStack(alignment: .center, spacing: 10) {
-              VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                  Text(record.metadata.displayName)
-                    .font(.subheadline.weight(.semibold))
-                  Text(record.storageLocation.badgeLabel)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                      (record.storageLocation == .localFallback ? Color.orange : Color.cyan).opacity(0.18),
-                      in: Capsule()
-                    )
-                    .foregroundStyle(record.storageLocation == .localFallback ? .orange : .cyan)
-                }
-
-                Text(
-                  "\(record.fileName) · \(record.metadata.roomCount)R · \(record.metadata.obstacleCount) obstacles"
-                )
-                .font(.caption2.monospaced())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                Text(record.metadata.exportedAt, format: .dateTime.month().day().hour().minute())
-                  .font(.caption2)
-                  .foregroundStyle(.tertiary)
+        ForEach(model.syncedScenes) { record in
+          Button {
+            Task { await model.inspectSyncedSceneButtonTapped(record) }
+          } label: {
+            HStack {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(record.metadata.displayName)
+                  .foregroundStyle(.primary)
+                Text("\(record.fileName) · \(record.metadata.roomCount)R · \(record.metadata.obstacleCount) objects")
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
               }
-
               Spacer()
-
-              Button {
-                Task { await model.inspectSyncedSceneButtonTapped(record) }
-              } label: {
-                Image(systemName: "doc.text.magnifyingglass")
-              }
-              .buttonStyle(.bordered)
-              .controlSize(.small)
-
-              Button(role: .destructive) {
-                Task { await model.deleteSyncedSceneButtonTapped(record) }
-              } label: {
-                Image(systemName: "trash")
-              }
-              .buttonStyle(.bordered)
-              .controlSize(.small)
+              Text(record.metadata.exportedAt, format: .dateTime.month().day())
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             }
-            .padding(10)
-            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
+          }
+          .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+              Task { await model.deleteSyncedSceneButtonTapped(record) }
+            } label: {
+              Label("Delete", systemImage: "trash")
+            }
           }
         }
       }
-    }
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private func configurationCard(_ result: MJCFExportResult) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("MJCF Export Options")
-        .font(.headline)
-
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Scene Name")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        TextField("my_apartment", text: $model.exportConfiguration.sceneName)
-          .textFieldStyle(.roundedBorder)
-          .autocorrectionDisabled()
-          #if canImport(UIKit)
-          .textInputAutocapitalization(.never)
-          #endif
-      }
-
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Doorway Collision Policy")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Picker("Doorways", selection: $model.exportConfiguration.doorPolicy) {
-          ForEach(DoorExportPolicy.allCases) { policy in
-            Text(policy.label).tag(policy)
-          }
-        }
-        .pickerStyle(.segmented)
-        Text(model.exportConfiguration.doorPolicy.summaryDescription)
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-
-      Toggle("Include Furniture Collision Shapes", isOn: $model.exportConfiguration.includeFurniture)
-        .font(.subheadline)
-
-      Toggle("Include Visual Room Floor Textures", isOn: $model.exportConfiguration.includeFloorOverlays)
-        .font(.subheadline)
-
-      Toggle("Align Dominant Walls to X / Y Axes", isOn: $model.exportConfiguration.alignDominantWallAxis)
-        .font(.subheadline)
-
-      Toggle("Place Duck Spawn (0, 0) in Clear Floor Space", isOn: $model.exportConfiguration.autoClearSpawnOrigin)
-        .font(.subheadline)
-    }
-    .padding(16)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private func simulatorInstructionsCard(_ config: MJCFExportConfiguration) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Run in Microduck Simulator", systemImage: "terminal")
-        .font(.headline)
-
-      Text("1. AirDrop or copy **\(config.fileName)** into your `microduck_rl` checkout so `<include file=\"robot_groundcontact_backlash.xml\" />` and `assets/` resolve without copying robot meshes:")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
-      Text("\(config.targetDirectoryRelativePath)\(config.fileName)")
-        .font(.caption.monospaced())
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-
-      Text("2. Restart `duck-sim` from `pollen-robotics/microduck`:")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
+    } header: {
       HStack {
-        Text(config.duckSimCommand)
-          .font(.caption.monospaced())
-          .lineLimit(2)
+        Text("Synced Scenes")
         Spacer()
-        Button {
-          model.copyLaunchCommandButtonTapped()
-        } label: {
-          Image(systemName: "doc.on.doc")
+        if model.isLoadingSyncedScenes {
+          ProgressView()
+            .controlSize(.mini)
+        } else {
+          Button {
+            Task { await model.refreshSyncedScenes() }
+          } label: {
+            Image(systemName: "arrow.clockwise")
+              .font(.caption)
+          }
+          .buttonStyle(.borderless)
         }
-        .buttonStyle(.bordered)
       }
-      .padding(8)
-      .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     }
-    .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-  }
-
-  private func guideBullet(icon: String, text: String) -> some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: icon)
-        .foregroundStyle(.cyan)
-        .frame(width: 20)
-      Text(text)
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-    }
-  }
-
-  private func errorCard(_ message: String) -> some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: "exclamationmark.octagon.fill")
-        .foregroundStyle(.red)
-      Text(message)
-        .font(.footnote)
-        .foregroundStyle(.red)
-    }
-    .padding(14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
   }
 }
 

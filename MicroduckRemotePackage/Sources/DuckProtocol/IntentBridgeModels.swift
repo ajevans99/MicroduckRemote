@@ -67,7 +67,7 @@ public struct DuckMoveStepRequest: Codable, Equatable, Sendable {
 
   public var clampedTwist: RobotMoveParams {
     RobotMoveParams(
-      vx: min(max(vx, -DuckConstants.maxLinearVelocity), DuckConstants.maxLinearVelocity),
+      vx: min(max(vx, -DuckConstants.maxBackwardLinearVelocity), DuckConstants.maxLinearVelocity),
       vy: min(max(vy, -DuckConstants.maxLinearVelocity), DuckConstants.maxLinearVelocity),
       vyaw: min(max(vyaw, -DuckConstants.maxAngularVelocity), DuckConstants.maxAngularVelocity)
     )

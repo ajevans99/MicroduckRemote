@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: dev.ajevans
   deploymentTarget:
     iOS: "27.3"
-    macOS: "27.2"
+    macOS: "27.3"
   xcodeVersion: "16.0"
 packages:
   MicroduckRemotePackage:

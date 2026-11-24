@@ -4,7 +4,8 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-public struct MoveDuckStepIntent: AppIntent {
+@AppIntent(.tool)
+public struct MoveDuckStepIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Move Microduck"
   public static let description = IntentDescription(
     "Walks, sidesteps, or turns Microduck for a bounded duration (0.2 to 5.0 seconds) at 10 Hz, automatically checking upright safety and stopping early if the forward 8x8 depth sensor detects an obstacle."
@@ -68,35 +69,45 @@ public struct MoveDuckStepIntent: AppIntent {
   public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
-    let initial = await duckSession.currentSnapshot()
-    let duckName: String
-    if initial.controlOpen {
-      duckName = initial.phase.connected?.name ?? "Microduck"
-    } else {
-      let identity = try await duckSession.ensureConnected(.seconds(6))
-      duckName = identity.name
-    }
-
     let request = direction.makeRequest(
       durationSeconds: durationSeconds,
       speedPercent: speedPercent,
       stopOnObstacle: stopOnObstacle
     )
-    let result = try await duckSession.performMoveStep(request)
-    let elapsed = result.elapsedSeconds.formatted(.number.precision(.fractionLength(0...1)))
+    let twist = request.clampedTwist
 
-    switch result.stopReason {
-    case .completed:
-      return .result(dialog: "Moved \(duckName) \(direction.spokenLabel) for \(elapsed) seconds.")
-    case let .stoppedForObstacle(distanceMm):
-      return .result(
-        dialog: "Stopped \(duckName) after \(elapsed) seconds — obstacle detected \(distanceMm) mm ahead."
+    let dialogText = try await IntentTelemetryTracer.traceTool(
+      intentName: "MoveDuckStepIntent",
+      displayTitle: "Move Microduck",
+      parameters: [
+        .init(key: "direction", value: direction.rawValue),
+        .init(key: "duration", value: "\(durationSeconds.formatted(.number.precision(.fractionLength(0...2))))s"),
+        .init(key: "speed", value: "\(Int(speedPercent.rounded()))%"),
+        .init(key: "twist", value: String(format: "vx %+.2f, vy %+.2f, vyaw %+.2f", twist.vx, twist.vy, twist.vyaw)),
+        .init(key: "stopOnObstacle", value: stopOnObstacle ? "true" : "false"),
+      ]
+    ) { setContext in
+      let connection = try await IntentTelemetryTracer.ensureConnected(
+        timeout: .seconds(6),
+        refreshIfOpen: true
       )
-    case let .interruptedBySafety(reason):
-      return .result(dialog: "Stopped \(duckName) early after \(elapsed) seconds: \(reason).")
+      setContext(connection.contextLabel)
+
+      let result = try await duckSession.performMoveStep(request)
+      let elapsed = result.elapsedSeconds.formatted(.number.precision(.fractionLength(0...1)))
+
+      let message: String
+      switch result.stopReason {
+      case .completed:
+        message = "Moved \(connection.duckName) \(direction.spokenLabel) for \(elapsed) seconds."
+      case let .stoppedForObstacle(distanceMm):
+        message = "Stopped \(connection.duckName) after \(elapsed) seconds — obstacle detected \(distanceMm) mm ahead."
+      case let .interruptedBySafety(reason):
+        message = "Stopped \(connection.duckName) early after \(elapsed) seconds: \(reason)."
+      }
+      return (message, message)
     }
+
+    return .result(dialog: IntentDialog(stringLiteral: dialogText))
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension MoveDuckStepIntent: ToolIntent, LiveActivityIntent {}

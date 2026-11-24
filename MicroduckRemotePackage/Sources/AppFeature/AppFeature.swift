@@ -267,14 +267,14 @@ public struct RootAppView: View {
       Tab("Tricks", systemImage: "sparkles", value: AppModel.Tab.tricks) {
         TricksGalleryView(model: model.tricksModel)
       }
-      Tab("Room Scan", systemImage: "cube.transparent", value: AppModel.Tab.roomScan) {
+      Tab("Room Scan", systemImage: "arkit", value: AppModel.Tab.roomScan) {
         RoomScanView(model: model.roomScanModel)
       }
-      Tab("Telemetry", systemImage: "waveform.path.ecg.rectangle", value: AppModel.Tab.telemetry) {
+      Tab("Telemetry", systemImage: "waveform.path.ecg", value: AppModel.Tab.telemetry) {
         TelemetryInspectorView(model: model.telemetryModel)
       }
       #if os(macOS)
-      Tab("Simulator", systemImage: "cube.transparent", value: AppModel.Tab.simulator) {
+      Tab("Simulator", systemImage: "desktopcomputer", value: AppModel.Tab.simulator) {
         SimulatorView(model: model.simulatorModel)
       }
       #endif
@@ -307,13 +307,14 @@ public struct ConnectionSheetView: View {
   public var body: some View {
     NavigationStack {
       Form {
-        Section("Connection Mode") {
+        Section {
           Picker("Transport", selection: $model.modeSelection) {
             ForEach(ConnectionSheetModel.ModeSelection.allCases) { option in
               Text(option.rawValue).tag(option)
             }
           }
           .pickerStyle(.segmented)
+          .labelsHidden()
         }
 
         if model.modeSelection == .local {
@@ -329,33 +330,30 @@ public struct ConnectionSheetView: View {
             }
             .fontWeight(.semibold)
           } header: {
-            Text("Local Signalling Server")
+            Text("Local Signalling")
           } footer: {
-            Text("Connects directly to mediad from DUCK_SIM_CAMERAS=a scripts/duck-sim. Note: only one browser or app session can connect to a duck at once.")
+            Text("Connects to mediad from local duck-sim. Only one client can connect at a time.")
           }
         } else {
-          Section("Hugging Face Account") {
+          Section("Hugging Face") {
             if let session = model.savedSession {
-              HStack {
-                Label("Signed in as @\(session.username)", systemImage: "person.crop.circle.badge.checkmark")
-                Spacer()
-                Button("Sign Out", role: .destructive) {
-                  model.signOutButtonTapped()
-                }
-              }
+              LabeledContent("Account", value: "@\(session.username)")
               Button("Connect via Rendezvous") {
                 Task { await model.connectSavedAccountButtonTapped() }
               }
               .fontWeight(.semibold)
+              Button("Sign Out", role: .destructive) {
+                model.signOutButtonTapped()
+              }
             } else {
               Button {
                 model.deviceSignInButtonTapped()
               } label: {
-                Label("Sign In with Hugging Face (Browser Code)", systemImage: "safari.fill")
+                Label("Sign In with Browser Code", systemImage: "safari")
                   .fontWeight(.semibold)
               }
 
-              SecureField("Or Paste Hugging Face Token (hf_…)", text: $model.pastedToken)
+              SecureField("Access Token (hf_…)", text: $model.pastedToken)
                 .autocorrectionDisabled()
               Button("Verify Token & Connect") {
                 Task { await model.saveTokenAndConnectButtonTapped() }
@@ -372,17 +370,17 @@ public struct ConnectionSheetView: View {
                 Task { await model.duckRowTapped(duck.id) }
               } label: {
                 HStack {
-                  VStack(alignment: .leading) {
+                  VStack(alignment: .leading, spacing: 2) {
                     Text(duck.displayName)
-                      .font(.body.weight(.medium))
-                    Text(duck.isSimulated ? "MuJoCo Twin" : "Hardware")
+                      .foregroundStyle(.primary)
+                    Text(duck.isSimulated ? "MuJoCo Simulator" : "Hardware")
                       .font(.caption)
                       .foregroundStyle(.secondary)
                   }
                   Spacer()
                   if duck.busy == true {
                     Text("Busy")
-                      .font(.caption.weight(.semibold))
+                      .font(.caption.weight(.medium))
                       .foregroundStyle(.orange)
                   }
                 }
@@ -401,13 +399,16 @@ public struct ConnectionSheetView: View {
 
         if let err = model.errorMessage {
           Section {
-            Text(err)
+            Label(err, systemImage: "exclamationmark.triangle.fill")
               .foregroundStyle(.red)
               .font(.footnote)
           }
         }
       }
-      .navigationTitle("Connect to Duck")
+      .navigationTitle("Connect")
+      #if canImport(UIKit)
+      .navigationBarTitleDisplayMode(.inline)
+      #endif
       #if os(macOS)
       .formStyle(.grouped)
       #endif

@@ -6,7 +6,7 @@ let package = Package(
   name: "MicroduckRemotePackage",
   platforms: [
     .iOS("27.3"),
-    .macOS("27.2"),
+    .macOS("27.3"),
   ],
   products: [
     .library(name: "AppFeature", targets: ["AppFeature"]),

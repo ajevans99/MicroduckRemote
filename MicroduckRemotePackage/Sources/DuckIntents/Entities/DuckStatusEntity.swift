@@ -5,12 +5,11 @@ import Foundation
 import SwiftUI
 
 /// Transient telemetry snapshot returned by `GetDuckStatusIntent` and rendered inside Siri
-/// via `CardSnippet` (`SnippetRepresentableEntity`) on iOS/macOS 27.3+.
-public struct DuckStatusEntity: TransientAppEntity, Equatable, Sendable {
+/// via `CardSnippet` (`SnippetRepresentableEntity`).
+public struct DuckStatusEntity: TransientAppEntity, SnippetRepresentableEntity, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Duck Status")
   public static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
 
-  #if os(iOS)
   @Property(title: "Duck Name", description: "Display name of the connected Microduck robot or simulator.")
   public var duckName: String
 
@@ -52,49 +51,6 @@ public struct DuckStatusEntity: TransientAppEntity, Equatable, Sendable {
 
   @Property(title: "Installed Tricks", description: "Number of tricks currently installed on the duck.")
   public var installedTrickCount: Int
-  #else
-  @Property(title: "Duck Name")
-  public var duckName: String
-
-  @Property(title: "Connected")
-  public var isConnected: Bool
-
-  @Property(title: "Simulated")
-  public var isSimulated: Bool
-
-  @Property(title: "Posture")
-  public var postureSummary: String
-
-  @Property(title: "Active Policy")
-  public var activePolicy: String
-
-  @Property(title: "Fallen")
-  public var isFallen: Bool
-
-  @Property(title: "Picked Up")
-  public var isPickedUp: Bool
-
-  @Property(title: "Battery Voltage")
-  public var batteryVolts: Double?
-
-  @Property(title: "Battery Percent")
-  public var batteryPercent: Int?
-
-  @Property(title: "Max Motor Temperature (°C)")
-  public var maxMotorTempC: Int?
-
-  @Property(title: "Hottest Servo")
-  public var hottestMotor: String?
-
-  @Property(title: "Control Loop (Hz)")
-  public var controlLoopHz: Double?
-
-  @Property(title: "Movement Limiter")
-  public var movementLimitReason: String?
-
-  @Property(title: "Installed Tricks")
-  public var installedTrickCount: Int
-  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     var parts = [postureSummary]
@@ -213,10 +169,7 @@ public struct DuckStatusEntity: TransientAppEntity, Equatable, Sendable {
       && lhs.movementLimitReason == rhs.movementLimitReason
       && lhs.installedTrickCount == rhs.installedTrickCount
   }
-}
 
-@available(iOS 27.3, macOS 27.3, *)
-extension DuckStatusEntity: SnippetRepresentableEntity {
   public static var snippet: some EntitySnippetContent<Self> {
     CardSnippet(supportedFamilies: [.standard, .compact]) { status, context in
       DuckStatusCardView(status: status, isCompact: context.family == .compact)
@@ -224,7 +177,7 @@ extension DuckStatusEntity: SnippetRepresentableEntity {
   }
 }
 
-private struct DuckStatusCardView: View {
+struct DuckStatusCardView: View {
   let status: DuckStatusEntity
   let isCompact: Bool
 
@@ -235,11 +188,52 @@ private struct DuckStatusCardView: View {
     return .green
   }
 
+  private var batteryIcon: String {
+    guard let pct = status.batteryPercent else { return "battery.50percent" }
+    switch pct {
+    case 88...: return "battery.100percent"
+    case 63..<88: return "battery.75percent"
+    case 38..<63: return "battery.50percent"
+    case 13..<38: return "battery.25percent"
+    default: return "battery.0percent"
+    }
+  }
+
+  private var batteryColor: Color {
+    guard let pct = status.batteryPercent else { return .secondary }
+    if pct < 20 { return .red }
+    if pct < 40 { return .orange }
+    return .green
+  }
+
   private var thermalColor: Color {
     guard let temp = status.maxMotorTempC else { return .secondary }
     if temp >= 55 { return .red }
     if temp >= 45 { return .orange }
     return .mint
+  }
+
+  private var notableAlert: (icon: String, text: String, tint: Color)? {
+    if status.isFallen {
+      return ("exclamationmark.triangle.fill", "Fallen — stand back up to walk", .red)
+    }
+    if status.isPickedUp {
+      return ("hand.raised.fill", "Picked up", .red)
+    }
+    guard let raw = status.movementLimitReason else { return nil }
+    let notable = raw
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && $0 != "deadman" }
+      .map { limiter -> String in
+        switch limiter {
+        case "joint_range": return "Joint travel clamped"
+        case "not_finite": return "Invalid command clamped"
+        default: return limiter.replacingOccurrences(of: "_", with: " ")
+        }
+      }
+    guard !notable.isEmpty else { return nil }
+    return ("exclamationmark.shield.fill", notable.joined(separator: " · "), .orange)
   }
 
   var body: some View {
@@ -259,6 +253,7 @@ private struct DuckStatusCardView: View {
         HStack(spacing: 5) {
           Text(status.duckName)
             .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
           if status.isSimulated {
             Text("SIM")
               .font(.caption2.weight(.bold))
@@ -272,16 +267,21 @@ private struct DuckStatusCardView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
-      Spacer()
+      Spacer(minLength: 4)
       if let pct = status.batteryPercent {
-        Label("\(pct)%", systemImage: "battery.75percent")
-          .font(.caption.monospacedDigit().weight(.semibold))
-          .foregroundStyle(.green)
+        HStack(spacing: 3) {
+          Image(systemName: batteryIcon)
+          Text("\(pct)%")
+        }
+        .font(.caption.monospacedDigit().weight(.semibold))
+        .foregroundStyle(batteryColor)
+        .fixedSize()
       }
       if let temp = status.maxMotorTempC {
         Text("\(temp)°C")
           .font(.caption.monospacedDigit().weight(.semibold))
           .foregroundStyle(thermalColor)
+          .fixedSize()
       }
     }
     .padding(12)
@@ -292,9 +292,10 @@ private struct DuckStatusCardView: View {
       HStack(alignment: .center, spacing: 8) {
         Circle()
           .fill(postureColor)
-          .frame(width: 10, height: 10)
+          .frame(width: 9, height: 9)
         Text(status.duckName)
           .font(.headline)
+          .lineLimit(1)
         if status.isSimulated {
           Text("SIM")
             .font(.caption2.weight(.bold))
@@ -302,44 +303,44 @@ private struct DuckStatusCardView: View {
             .padding(.vertical, 2)
             .background(.teal.opacity(0.22), in: Capsule())
             .foregroundStyle(.teal)
+            .fixedSize()
         }
-        Spacer()
+        Spacer(minLength: 6)
         Text(status.postureSummary)
-          .font(.caption.weight(.bold))
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
+          .font(.caption.weight(.semibold))
+          .padding(.horizontal, 9)
+          .padding(.vertical, 3)
           .background(postureColor.opacity(0.18), in: Capsule())
           .foregroundStyle(postureColor)
+          .fixedSize()
       }
 
-      HStack(spacing: 10) {
+      HStack(spacing: 8) {
         metricTile(
-          icon: "battery.75percent",
-          tint: .green,
-          title: "Battery",
+          icon: batteryIcon,
+          tint: batteryColor,
           value: status.batteryPercent.map { "\($0)%" } ?? "–",
-          detail: status.batteryVolts.map { String(format: "%.2f V", $0) } ?? "Waiting"
+          detail: status.batteryVolts.map { String(format: "%.2f V", $0) } ?? "Battery"
         )
         metricTile(
           icon: "thermometer.medium",
           tint: thermalColor,
-          title: "Thermals",
           value: status.maxMotorTempC.map { "\($0)°C" } ?? "–",
-          detail: status.hottestMotor?.replacingOccurrences(of: "_", with: " ") ?? "15 servos"
+          detail: "Motors"
         )
         metricTile(
           icon: "waveform.path.ecg",
           tint: .cyan,
-          title: "Loop",
           value: status.controlLoopHz.map { String(format: "%.0f Hz", $0) } ?? "–",
           detail: status.activePolicy
         )
       }
+      .fixedSize(horizontal: false, vertical: true)
 
-      if let limiter = status.movementLimitReason {
-        Label("Limiter: \(limiter)", systemImage: "exclamationmark.shield.fill")
-          .font(.caption2.weight(.medium))
-          .foregroundStyle(.orange)
+      if let alert = notableAlert {
+        Label(alert.text, systemImage: alert.icon)
+          .font(.caption.weight(.medium))
+          .foregroundStyle(alert.tint)
       }
     }
     .padding(14)
@@ -348,23 +349,26 @@ private struct DuckStatusCardView: View {
   private func metricTile(
     icon: String,
     tint: Color,
-    title: String,
     value: String,
     detail: String
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-      Label(title, systemImage: icon)
-        .font(.caption2.weight(.semibold))
+      Image(systemName: icon)
+        .font(.caption.weight(.semibold))
         .foregroundStyle(tint)
+        .frame(height: 14)
       Text(value)
-        .font(.subheadline.monospacedDigit().weight(.bold))
+        .font(.headline.monospacedDigit())
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
       Text(detail)
         .font(.caption2)
         .foregroundStyle(.secondary)
         .lineLimit(1)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(10)
-    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 9)
+    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }

@@ -7,7 +7,6 @@ import SwiftUINavigation
 public struct CockpitView: View {
   @Bindable var model: CockpitModel
   @Environment(\.duckVideoRenderer) private var duckVideoRenderer
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   public init(model: CockpitModel) {
     self.model = model
@@ -15,17 +14,34 @@ public struct CockpitView: View {
 
   public var body: some View {
     GeometryReader { proxy in
-      let isLandscape = proxy.size.width > proxy.size.height && proxy.size.height < 560
-      ZStack {
-        Color(white: 0.06).ignoresSafeArea()
-        if isLandscape {
-          landscapeCockpit(size: proxy.size)
-        } else {
+      let isCompactLandscape = proxy.size.width > proxy.size.height && proxy.size.height < 520
+      if isCompactLandscape {
+        landscapeCockpit(size: proxy.size)
+          .background(.black)
+      } else {
+        NavigationStack {
           portraitCockpit(size: proxy.size)
+            #if canImport(UIKit)
+            .background(Color(.systemGroupedBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+              #if os(macOS)
+              ToolbarItem(placement: .navigation) {
+                connectionToolbarButton
+              }
+              #else
+              ToolbarItem(placement: .principal) {
+                connectionToolbarButton
+              }
+              #endif
+              ToolbarItem(placement: .primaryAction) {
+                modesMenu
+              }
+            }
         }
       }
     }
-    .preferredColorScheme(.dark)
     .task {
       await model.task()
     }
@@ -52,22 +68,28 @@ public struct CockpitView: View {
 
   private func portraitCockpit(size: CGSize) -> some View {
     ScrollView(showsIndicators: false) {
-      VStack(spacing: 14) {
-        statusCapsuleHeader
+      VStack(spacing: 16) {
         videoStageCard
-          .frame(height: min(max(size.height * 0.36, 230), 360))
-        quickSkillsStrip
-        postureAndModesRow
+          .frame(height: min(max(size.height * 0.36, 220), 380))
+
+        postureAndSoundsRow
+
         if model.showSoundDrawer {
-          soundboardCard
-            .transition(.move(edge: .top).combined(with: .opacity))
+          soundboardStrip
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
+
+        quickSkillsStrip
+
         thumbsticksDeck
-          .frame(height: 195)
+          .frame(height: 188)
+          .padding(.top, 4)
       }
       .padding(.horizontal, 16)
-      .padding(.top, 8)
+      .padding(.top, 10)
       .padding(.bottom, 24)
+      .frame(maxWidth: 760)
+      .frame(maxWidth: .infinity)
     }
   }
 
@@ -78,10 +100,16 @@ public struct CockpitView: View {
 
       VStack {
         HStack {
-          statusCapsuleHeader
+          connectionToolbarButton
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
           Spacer()
           quickSkillsStrip
-            .frame(maxWidth: size.width * 0.46)
+            .frame(maxWidth: size.width * 0.44)
+          modesMenu
+            .padding(8)
+            .background(.ultraThinMaterial, in: Circle())
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -89,7 +117,7 @@ public struct CockpitView: View {
         Spacer()
 
         if model.showSoundDrawer {
-          soundboardCard
+          soundboardStrip
             .padding(.horizontal, 24)
         }
 
@@ -104,11 +132,11 @@ public struct CockpitView: View {
             onMove: { x, y in Task { await model.leftThumbstickMoved(x: x, y: y) } },
             onRelease: { Task { await model.leftThumbstickReleased() } }
           )
-          .frame(width: 150, height: 175)
+          .frame(width: 148, height: 172)
 
           Spacer()
 
-          postureAndModesRow
+          postureAndSoundsRow
 
           Spacer()
 
@@ -122,7 +150,7 @@ public struct CockpitView: View {
             onMove: { x, _ in Task { await model.rightThumbstickMoved(x: x) } },
             onRelease: { Task { await model.rightThumbstickReleased() } }
           )
-          .frame(width: 150, height: 175)
+          .frame(width: 148, height: 172)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
@@ -130,63 +158,33 @@ public struct CockpitView: View {
     }
   }
 
-  private var statusCapsuleHeader: some View {
+  private var connectionToolbarButton: some View {
     Button {
       model.connectionHeaderTapped()
     } label: {
       HStack(spacing: 6) {
         Circle()
           .fill(statusDotColor)
-          .frame(width: 9, height: 9)
+          .frame(width: 8, height: 8)
 
         Text(model.snapshot.phase.statusText)
           .font(.subheadline.weight(.semibold))
           .lineLimit(1)
-          .minimumScaleFactor(0.85)
-          .layoutPriority(1)
-
-        if case let .connected(identity) = model.snapshot.phase, identity.isSimulated {
-          Text("SIM")
-            .font(.caption2.weight(.bold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.teal.opacity(0.25), in: Capsule())
-            .foregroundStyle(.teal)
-        }
-
-        Spacer(minLength: 4)
-
-        if let hz = model.snapshot.latestState?.controlLoop?.hz {
-          Label(String(format: "%.0f Hz", hz), systemImage: "waveform.path.ecg")
-            .font(.caption.monospacedDigit().weight(.medium))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: true, vertical: false)
-        }
-
-        if let fps = model.snapshot.linkStats.fps {
-          Text("\(fps) fps")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: true, vertical: false)
-        }
 
         if let battery = model.snapshot.health?.battery {
-          Label(String(format: "%.1fV", battery.volts), systemImage: "battery.75percent")
-            .font(.caption.monospacedDigit().weight(.medium))
-            .foregroundStyle(.green)
-            .fixedSize(horizontal: true, vertical: false)
+          Text("· \(Int(battery.percent.rounded()))%")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+        } else if case let .connected(identity) = model.snapshot.phase, identity.isSimulated {
+          Text("· Sim")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Image(systemName: "chevron.down")
-          .font(.caption2.weight(.bold))
+          .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 10)
-      .background(.ultraThinMaterial, in: Capsule())
-      .overlay(
-        Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1)
-      )
     }
     .buttonStyle(.plain)
   }
@@ -201,13 +199,15 @@ public struct CockpitView: View {
     case .failed:
       return .red
     case .disconnected, .connected:
-      return .gray
+      return .secondary
     }
   }
 
   private var videoStageCard: some View {
     GeometryReader { stageProxy in
       ZStack {
+        Color.black
+
         duckVideoRenderer(model.snapshot.videoInfo)
           .frame(width: stageProxy.size.width, height: stageProxy.size.height)
 
@@ -222,7 +222,8 @@ public struct CockpitView: View {
             safetyBadge
             if model.gamepadState.isConnected, let name = model.gamepadState.controllerName {
               Label(name, systemImage: "gamecontroller.fill")
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(.ultraThinMaterial, in: Capsule())
@@ -231,13 +232,14 @@ public struct CockpitView: View {
             Button {
               Task { await model.tofOverlayButtonTapped() }
             } label: {
-              Label("ToF 8×8", systemImage: model.showTofOverlay ? "square.grid.3x3.fill" : "square.grid.3x3")
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(.ultraThinMaterial, in: Capsule())
+              Image(systemName: model.showTofOverlay ? "square.grid.3x3.fill" : "square.grid.3x3")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(.ultraThinMaterial, in: Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Toggle 8x8 Depth Overlay")
           }
           .padding(12)
 
@@ -246,39 +248,24 @@ public struct CockpitView: View {
           HStack(alignment: .bottom) {
             if model.showTofOverlay, let tof = model.snapshot.tofFrame {
               TofMiniHeatmapView(frame: tof)
-                .frame(width: 96, height: 96)
+                .frame(width: 88, height: 88)
                 .transition(.scale.combined(with: .opacity))
             }
             Spacer()
             if !model.snapshot.controlOpen {
-              Button {
+              Button("Connect") {
                 model.connectionHeaderTapped()
-              } label: {
-                Label("Connect to Duck", systemImage: "antenna.radiowaves.left.and.right")
-                  .font(.footnote.weight(.semibold))
-                  .padding(.horizontal, 14)
-                  .padding(.vertical, 8)
-                  .background(.regularMaterial, in: Capsule())
               }
-              .buttonStyle(.plain)
-            } else {
-              Text("Drag video to aim head IK")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.65))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.35), in: Capsule())
+              .buttonStyle(.borderedProminent)
+              .buttonBorderShape(.capsule)
+              .controlSize(.small)
             }
           }
           .padding(12)
         }
       }
-      .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-          .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-      )
-      .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+      .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
       .gesture(
         DragGesture(minimumDistance: 0)
           .onChanged { gesture in
@@ -294,55 +281,59 @@ public struct CockpitView: View {
     }
   }
 
+  @ViewBuilder
   private var safetyBadge: some View {
     let safety = model.snapshot.latestState?.safety
-    let nominal = safety?.isNominal ?? true
-    let text = safety?.statusLabel ?? (model.snapshot.mode?.capitalized ?? "Standby")
-    return Group {
-      if model.isFallen {
-        Button {
-          Task { await model.standBackUpButtonTapped() }
-        } label: {
-          Label(
-            model.isStandingBackUp ? "Standing Up…" : "Fallen · Tap to Stand",
-            systemImage: "arrow.up.circle.fill"
-          )
-          .font(.caption2.weight(.bold))
-          .foregroundStyle(.black)
-          .padding(.horizontal, 10)
-          .padding(.vertical, 5)
-          .background(Color.orange, in: Capsule())
-        }
-        .buttonStyle(.plain)
-      } else {
-        Label(text, systemImage: nominal ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-          .font(.caption2.weight(.semibold))
-          .foregroundStyle(nominal ? Color.white : Color.orange)
-          .padding(.horizontal, 9)
-          .padding(.vertical, 5)
-          .background(.ultraThinMaterial, in: Capsule())
+    if model.isFallen {
+      Button {
+        Task { await model.standBackUpButtonTapped() }
+      } label: {
+        Label(
+          model.isStandingBackUp ? "Standing Up…" : "Fallen · Stand Up",
+          systemImage: "arrow.up.circle.fill"
+        )
+        .font(.caption.weight(.semibold))
       }
+      .buttonStyle(.borderedProminent)
+      .buttonBorderShape(.capsule)
+      .tint(.orange)
+      .controlSize(.small)
+    } else if let safety, !safety.isNominal {
+      Label(safety.statusLabel, systemImage: "exclamationmark.triangle.fill")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: Capsule())
+    } else if let fps = model.snapshot.linkStats.fps, model.snapshot.controlOpen {
+      Text("\(fps) fps")
+        .font(.caption2.monospacedDigit().weight(.medium))
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.45), in: Capsule())
     }
   }
 
   private func gazeReticle(in size: CGSize) -> some View {
     let x = CGFloat((model.gazeNormalizedX + 1) * 0.5) * size.width
     let y = CGFloat((model.gazeNormalizedY + 1) * 0.5) * size.height
-    let tint: Color = model.isGazeClamped ? .orange : .cyan
+    let tint: Color = model.isGazeClamped ? .orange : .white
     return ZStack {
       Circle()
-        .strokeBorder(tint, lineWidth: 2)
-        .frame(width: 38, height: 38)
+        .strokeBorder(tint, lineWidth: 1.5)
+        .frame(width: 34, height: 34)
       Circle()
         .fill(tint)
-        .frame(width: 6, height: 6)
+        .frame(width: 5, height: 5)
       if model.isGazeClamped {
-        Text("IK Limit")
-          .font(.system(size: 10, weight: .bold))
+        Text("Limit")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.white)
           .padding(.horizontal, 6)
           .padding(.vertical, 2)
-          .background(.orange.opacity(0.85), in: Capsule())
-          .offset(y: -30)
+          .background(.orange, in: Capsule())
+          .offset(y: -26)
       }
     }
     .position(x: x, y: y)
@@ -362,55 +353,13 @@ public struct CockpitView: View {
           RoundedRectangle(cornerRadius: 8)
             .strokeBorder(.yellow, lineWidth: 2)
             .frame(width: w, height: h)
-            .overlay(alignment: .topLeading) {
-              Text("duck")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.black)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(.yellow, in: Capsule())
-                .offset(y: -18)
-            }
             .position(x: cx, y: cy)
         }
       }
     }
   }
 
-  private var quickSkillsStrip: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 8) {
-        ForEach(model.snapshot.skillNames, id: \.self) { skill in
-          let isRunning = model.activeSkillName == skill
-          Button {
-            Task { await model.quickSkillButtonTapped(skill) }
-          } label: {
-            HStack(spacing: 6) {
-              if isRunning {
-                ProgressView()
-                  .controlSize(.mini)
-              } else {
-                Image(systemName: iconForSkill(skill))
-                  .font(.caption.weight(.semibold))
-              }
-              Text(prettySkillName(skill))
-                .font(.caption.weight(.semibold))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(
-              Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1)
-            )
-          }
-          .buttonStyle(.plain)
-          .disabled(!model.snapshot.controlOpen)
-        }
-      }
-    }
-  }
-
-  private var postureAndModesRow: some View {
+  private var postureAndSoundsRow: some View {
     HStack(spacing: 10) {
       if model.isFallen {
         Button {
@@ -424,69 +373,65 @@ public struct CockpitView: View {
             }
             Text(model.isStandingBackUp ? "Standing Up…" : "Stand Back Up")
           }
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(Color.orange.opacity(0.28), in: Capsule())
-          .overlay(Capsule().strokeBorder(Color.orange, lineWidth: 1))
+          .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(.orange)
+        .controlSize(.large)
         .disabled(!model.snapshot.controlOpen || model.isStandingBackUp)
       } else {
         Button {
           Task { await model.standToggleButtonTapped() }
         } label: {
           Label(
-            model.isEnabled ? "Balancing" : "Stand & Balance",
+            model.isEnabled ? "Balancing" : "Stand",
             systemImage: model.isEnabled ? "figure.stand" : "play.fill"
           )
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(
-            model.isEnabled ? Color.green.opacity(0.24) : Color.accentColor.opacity(0.28),
-            in: Capsule()
-          )
-          .overlay(
-            Capsule().strokeBorder(model.isEnabled ? Color.green : Color.accentColor, lineWidth: 1)
-          )
+          .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(model.isEnabled ? .green : .accentColor)
+        .controlSize(.large)
         .disabled(!model.snapshot.controlOpen)
       }
 
       Button {
         Task { await model.stopButtonTapped() }
       } label: {
-        Label("Stop", systemImage: "hand.raised.fill")
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(Color.red.opacity(0.22), in: Capsule())
-          .overlay(Capsule().strokeBorder(Color.red.opacity(0.65), lineWidth: 1))
+        Label("Stop", systemImage: "stop.fill")
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.bordered)
+      .buttonBorderShape(.capsule)
+      .tint(.red)
+      .controlSize(.large)
       .disabled(!model.snapshot.controlOpen)
 
       Button {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+        withAnimation(.snappy(duration: 0.25)) {
           model.soundDrawerToggleTapped()
         }
       } label: {
-        Image(systemName: model.showSoundDrawer ? "speaker.wave.3.fill" : "speaker.wave.2.fill")
-          .font(.subheadline.weight(.semibold))
-          .frame(width: 40, height: 40)
-          .background(.ultraThinMaterial, in: Circle())
+        Image(systemName: model.showSoundDrawer ? "speaker.wave.3.fill" : "speaker.wave.2")
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.bordered)
+      .buttonBorderShape(.circle)
+      .tint(model.showSoundDrawer ? .accentColor : .primary)
+      .controlSize(.large)
       .disabled(!model.snapshot.controlOpen)
+      .accessibilityLabel("Sounds")
+    }
+  }
 
-      Menu {
+  private var modesMenu: some View {
+    Menu {
+      Section("Modes") {
         Button {
           Task { await model.autonomousToggleTapped() }
         } label: {
           Label(
-            model.autonomousEnabled ? "Disable Autonomous Brain" : "Enable Autonomous Brain",
+            model.autonomousEnabled ? "Disable Autonomous" : "Autonomous Mode",
             systemImage: "sparkles"
           )
         }
@@ -494,7 +439,7 @@ public struct CockpitView: View {
           Task { await model.flashlightToggleTapped() }
         } label: {
           Label(
-            model.flashlightEnabled ? "Turn Off Flashlight" : "Turn On Flashlight",
+            model.flashlightEnabled ? "Turn Off Flashlight" : "Flashlight",
             systemImage: "flashlight.on.fill"
           )
         }
@@ -514,45 +459,73 @@ public struct CockpitView: View {
             systemImage: "soccerball"
           )
         }
-        Divider()
+      }
+
+      Section("Motors") {
         Button {
           Task { await model.initPoseButtonTapped() }
         } label: {
-          Label("Home Pose (Init)", systemImage: "arrow.uturn.backward.circle")
+          Label("Home Pose", systemImage: "arrow.uturn.backward.circle")
         }
         Button {
           Task { await model.rebootMotorsButtonTapped() }
         } label: {
-          Label("Reboot Overloaded Motors", systemImage: "bolt.arrow.trianglehead.counterclockwise")
+          Label("Reboot Motors", systemImage: "bolt.arrow.trianglehead.counterclockwise")
         }
         Button(role: .destructive) {
           model.relaxMenuButtonTapped()
         } label: {
           Label("Relax Motors…", systemImage: "poweroff")
         }
-      } label: {
-        Image(systemName: "ellipsis")
-          .font(.subheadline.weight(.semibold))
-          .frame(width: 40, height: 40)
-          .background(.ultraThinMaterial, in: Circle())
       }
-      .disabled(!model.snapshot.controlOpen)
+    } label: {
+      Image(systemName: "ellipsis.circle")
+    }
+    .disabled(!model.snapshot.controlOpen)
+  }
+
+  private var quickSkillsStrip: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 8) {
+        ForEach(model.snapshot.skillNames, id: \.self) { skill in
+          let isRunning = model.activeSkillName == skill
+          Button {
+            Task { await model.quickSkillButtonTapped(skill) }
+          } label: {
+            HStack(spacing: 5) {
+              if isRunning {
+                ProgressView()
+                  .controlSize(.mini)
+              } else {
+                Image(systemName: iconForSkill(skill))
+              }
+              Text(prettySkillName(skill))
+            }
+            .font(.footnote.weight(.medium))
+          }
+          .buttonStyle(.bordered)
+          .buttonBorderShape(.capsule)
+          .controlSize(.small)
+          .disabled(!model.snapshot.controlOpen)
+        }
+      }
     }
   }
 
-  private var soundboardCard: some View {
+  private var soundboardStrip: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
         ForEach(SoundTag.allCases) { sound in
           if sound.isHoldable {
             Label("Hold Wheee", systemImage: sound.systemImage)
-              .font(.caption.weight(.semibold))
+              .font(.footnote.weight(.medium))
               .padding(.horizontal, 12)
-              .padding(.vertical, 8)
+              .padding(.vertical, 6)
               .background(
-                model.isHoldingWheee ? Color.cyan.opacity(0.35) : Color.white.opacity(0.09),
+                model.isHoldingWheee ? Color.accentColor.opacity(0.24) : Color.primary.opacity(0.08),
                 in: Capsule()
               )
+              .foregroundStyle(model.isHoldingWheee ? Color.accentColor : .primary)
               .gesture(
                 DragGesture(minimumDistance: 0)
                   .onChanged { _ in
@@ -567,25 +540,22 @@ public struct CockpitView: View {
               Task { await model.soundButtonTapped(sound) }
             } label: {
               Label(sound.displayName, systemImage: sound.systemImage)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
+                .font(.footnote.weight(.medium))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
           }
         }
       }
-      .padding(10)
     }
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
   }
 
   private var thumbsticksDeck: some View {
     HStack(spacing: 24) {
       ThumbstickPadView(
-        title: "Walk & Strafe",
-        subtitle: String(format: "vx %+.2f · vy %+.2f", model.currentTwist.vx, model.currentTwist.vy),
+        title: "Move",
+        subtitle: String(format: "%+.2f, %+.2f", model.currentTwist.vx, model.currentTwist.vy),
         mode: .omnidirectional,
         normalizedX: model.leftStickX,
         normalizedY: model.leftStickY,
@@ -596,7 +566,7 @@ public struct CockpitView: View {
 
       ThumbstickPadView(
         title: "Turn",
-        subtitle: String(format: "vyaw %+.2f rad/s", model.currentTwist.vyaw),
+        subtitle: String(format: "%+.2f rad/s", model.currentTwist.vyaw),
         mode: .horizontalOnly,
         normalizedX: model.rightStickX,
         normalizedY: 0,
@@ -610,8 +580,8 @@ public struct CockpitView: View {
 
   private func prettySkillName(_ raw: String) -> String {
     switch raw {
-    case "sit_toggle": "Sit ⇄ Stand"
-    case "ground_pick": "Ground Pick"
+    case "sit_toggle": "Sit"
+    case "ground_pick": "Pick"
     case "kick_left": "Kick Left"
     case "kick_right": "Kick Right"
     default:
@@ -624,10 +594,10 @@ public struct CockpitView: View {
 
   private func iconForSkill(_ raw: String) -> String {
     switch raw {
-    case "roulade": "arrow.clockwise.circle.fill"
+    case "roulade": "arrow.clockwise"
     case "kick_left", "kick_right": "figure.soccer"
     case "ground_pick": "arrow.down.to.line.compact"
-    case "sit_toggle": "chair.lounge.fill"
+    case "sit_toggle": "figure.seated.side"
     default: "sparkles"
     }
   }

@@ -197,9 +197,9 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
     self.autoConnectCockpit = autoConnectCockpit
   }
 
-  public static func defaultMicroduckRepoPath() -> String {
-    let home = NSHomeDirectory()
+  public static func defaultMicroduckRepoPath(home: String = NSHomeDirectory()) -> String {
     let candidates = [
+      "\(home)/Documents/microduck",
       "\(home)/.copilot/repos/microduck",
       "\(home)/Pollen/microduck",
       "\(home)/Code/microduck",
@@ -211,16 +211,47 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
     return candidates[0]
   }
 
-  public static func defaultMicroduckRLRepoPath() -> String {
-    let home = NSHomeDirectory()
+  public static func defaultMicroduckRLRepoPath(home: String = NSHomeDirectory()) -> String {
     let candidates = [
       "\(home)/Pollen/microduck_rl",
+      "\(home)/Documents/microduck_rl",
       "\(home)/.copilot/repos/microduck_rl",
     ]
     for path in candidates where FileManager.default.fileExists(atPath: path) {
       return path
     }
     return candidates[0]
+  }
+
+  /// Builds a PATH suitable for invoking `scripts/duck-sim` from a macOS GUI app bundle,
+  /// ensuring Homebrew's keg-only `rustup` (`cargo`), `~/.cargo/bin`, `mise` shims, and
+  /// Homebrew binaries (`pkg-config`, `gst-launch-1.0`) are resolvable.
+  public static func enrichedPATH(
+    existing: String?,
+    home: String = NSHomeDirectory()
+  ) -> String {
+    let preferred = [
+      "/opt/homebrew/opt/rustup/bin",
+      "/usr/local/opt/rustup/bin",
+      "\(home)/.cargo/bin",
+      "\(home)/.local/share/mise/shims",
+      "\(home)/.local/bin",
+      "/opt/homebrew/bin",
+      "/opt/homebrew/sbin",
+      "/usr/local/bin",
+      "/usr/local/sbin",
+    ]
+    let fallback = "/usr/bin:/bin:/usr/sbin:/sbin"
+    let existingParts = (existing?.isEmpty == false ? existing! : fallback)
+      .split(separator: ":")
+      .map(String.init)
+
+    var seen: Set<String> = []
+    var ordered: [String] = []
+    for entry in preferred + existingParts where !entry.isEmpty && seen.insert(entry).inserted {
+      ordered.append(entry)
+    }
+    return ordered.joined(separator: ":")
   }
 
   public static func defaultStateDirPath() -> String {

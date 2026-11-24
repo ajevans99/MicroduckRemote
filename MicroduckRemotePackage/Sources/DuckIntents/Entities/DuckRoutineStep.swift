@@ -3,12 +3,12 @@ import DuckProtocol
 import Foundation
 
 /// A single expressive beat in an Apple Intelligence–synthesized `DuckRoutine`.
-/// Every stored property is a plain value type or `AppEnum` so `GenerableEntity`
-/// lets Siri AI instantiate an array of steps directly from natural language on iOS/macOS 27.3+.
+/// Every stored property is a plain value type or `AppEnum` so `@AppEntity(.generable)`
+/// lets Siri AI instantiate an array of steps directly from natural language.
+@AppEntity(.generable)
 public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Routine Step")
 
-  #if os(iOS)
   @Property(
     title: "Beat Description",
     description: "Short playful 2-to-5 word description of this beat (for example 'Peek left nervously' or 'Victory chirp')."
@@ -62,34 +62,6 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     description: "Optional RGB face light color for this beat (white, red, green, blue, yellow, cyan, magenta, or off)."
   )
   public var lightColor: DuckLightColor?
-  #else
-  @Property(title: "Beat Description")
-  public var caption: String
-
-  @Property(title: "Sound")
-  public var sound: DuckSound?
-
-  @Property(title: "Look Horizontal (%)")
-  public var lookHorizontalPercent: Int
-
-  @Property(title: "Look Vertical (%)")
-  public var lookVerticalPercent: Int
-
-  @Property(title: "Move Direction")
-  public var moveDirection: DuckMoveDirection?
-
-  @Property(title: "Duration (Seconds)")
-  public var durationSeconds: Double
-
-  @Property(title: "Speed (%)")
-  public var speedPercent: Int
-
-  @Property(title: "Built-in Trick")
-  public var builtInTrick: DuckBuiltInTrick?
-
-  @Property(title: "Light Color")
-  public var lightColor: DuckLightColor?
-  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     DisplayRepresentation(
@@ -189,6 +161,3 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
       && lhs.lightColor == rhs.lightColor
   }
 }
-
-@available(iOS 27.3, macOS 27.3, *)
-extension DuckRoutineStep: GenerableEntity {}

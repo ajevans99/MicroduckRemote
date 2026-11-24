@@ -11,7 +11,7 @@ open MicroduckRemoteWorkspace.xcworkspace
 ```
 
 - **iOS**: Select the **`MicroduckRemote`** scheme (iOS 27.3+).
-- **macOS**: Select the **`MicroduckRemoteMac`** scheme and run on **My Mac** (macOS 27.2+).
+- **macOS**: Select the **`MicroduckRemoteMac`** scheme and run on **My Mac** (macOS 27.3+).
 
 ## Driving `duck-sim` Locally
 

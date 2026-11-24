@@ -73,7 +73,7 @@ public enum DuckMoveDirection: String, AppEnum, Sendable {
 
     let (vx, vy, vyaw): (Double, Double, Double) = switch self {
     case .forward: (linear, 0, 0)
-    case .backward: (-linear, 0, 0)
+    case .backward: (DuckConstants.backwardLinearVelocity(magnitude: scale), 0, 0)
     case .strafeLeft: (0, linear, 0)
     case .strafeRight: (0, -linear, 0)
     case .turnLeft: (0, 0, angular)

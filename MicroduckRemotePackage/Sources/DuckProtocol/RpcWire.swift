@@ -216,6 +216,10 @@ public struct IceCandidatePayload: Codable, Equatable, Sendable {
   public var candidate: String
   public var sdpMLineIndex: Int32
 
+  public var isEndOfCandidates: Bool {
+    candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   public init(candidate: String, sdpMLineIndex: Int32) {
     self.candidate = candidate
     self.sdpMLineIndex = sdpMLineIndex

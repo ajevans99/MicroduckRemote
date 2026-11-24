@@ -208,7 +208,7 @@ public enum SimulatorSceneScanner {
   /// Strips ANSI escape sequences (such as `duck-sim`'s cyan `==` prefix) for clean native log output.
   public static func stripANSI(_ input: String) -> String {
     input.replacingOccurrences(
-      of: #"\u{001B}\[[0-9;]*[A-Za-z]"#,
+      of: "\u{001B}\\[[0-9;]*[A-Za-z]",
       with: "",
       options: .regularExpression
     )
@@ -280,9 +280,27 @@ extension SimulatorClient: DependencyKey {
       loadConfiguration: {
         guard
           let data = UserDefaults.standard.data(forKey: configDefaultsKey),
-          let decoded = try? JSONDecoder().decode(SimulatorConfiguration.self, from: data)
+          var decoded = try? JSONDecoder().decode(SimulatorConfiguration.self, from: data)
         else {
           return SimulatorConfiguration()
+        }
+        var didMigrate = false
+        if !FileManager.default.isExecutableFile(atPath: decoded.duckSimScriptURL.path) {
+          let fallback = SimulatorConfiguration.defaultMicroduckRepoPath()
+          if FileManager.default.isExecutableFile(atPath: "\(fallback)/scripts/duck-sim") {
+            decoded.microduckRepoPath = fallback
+            didMigrate = true
+          }
+        }
+        if !FileManager.default.fileExists(atPath: decoded.microduckRLRepoPath) {
+          let fallbackRL = SimulatorConfiguration.defaultMicroduckRLRepoPath()
+          if FileManager.default.fileExists(atPath: fallbackRL) {
+            decoded.microduckRLRepoPath = fallbackRL
+            didMigrate = true
+          }
+        }
+        if didMigrate, let updated = try? JSONEncoder().encode(decoded) {
+          UserDefaults.standard.set(updated, forKey: configDefaultsKey)
         }
         return decoded
       },
@@ -657,15 +675,7 @@ private enum LiveSimulatorRuntime {
 
       var env = ProcessInfo.processInfo.environment
       let home = NSHomeDirectory()
-      let extraPaths = [
-        "/opt/homebrew/bin",
-        "/opt/homebrew/sbin",
-        "/usr/local/bin",
-        "\(home)/.cargo/bin",
-        "\(home)/.local/bin",
-      ]
-      let existingPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
-      env["PATH"] = (extraPaths + [existingPath]).joined(separator: ":")
+      env["PATH"] = SimulatorConfiguration.enrichedPATH(existing: env["PATH"], home: home)
       env["HOME"] = home
       for (k, v) in config.launchEnvironment(sceneOverride: sceneOverride) {
         env[k] = v
