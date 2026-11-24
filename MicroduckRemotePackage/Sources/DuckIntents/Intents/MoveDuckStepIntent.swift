@@ -67,8 +67,6 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
     let request = direction.makeRequest(
       durationSeconds: durationSeconds,
       speedPercent: speedPercent,
@@ -76,7 +74,7 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
     )
     let twist = request.clampedTwist
 
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "MoveDuckStepIntent",
       displayTitle: "Move Microduck",
       parameters: [
@@ -85,27 +83,20 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
         .init(key: "speed", value: "\(Int(speedPercent.rounded()))%"),
         .init(key: "twist", value: String(format: "vx %+.2f, vy %+.2f, vyaw %+.2f", twist.vx, twist.vy, twist.vyaw)),
         .init(key: "stopOnObstacle", value: stopOnObstacle ? "true" : "false"),
-      ]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
-
+      ],
+      refreshIfOpen: true
+    ) { connection, duckSession in
       let result = try await duckSession.performMoveStep(request)
       let elapsed = result.elapsedSeconds.formatted(.number.precision(.fractionLength(0...1)))
 
-      let message: String
       switch result.stopReason {
       case .completed:
-        message = "Moved \(connection.duckName) \(direction.spokenLabel) for \(elapsed) seconds."
+        return "Moved \(connection.duckName) \(direction.spokenLabel) for \(elapsed) seconds."
       case let .stoppedForObstacle(distanceMm):
-        message = "Stopped \(connection.duckName) after \(elapsed) seconds — obstacle detected \(distanceMm) mm ahead."
+        return "Stopped \(connection.duckName) after \(elapsed) seconds — obstacle detected \(distanceMm) mm ahead."
       case let .interruptedBySafety(reason):
-        message = "Stopped \(connection.duckName) early after \(elapsed) seconds: \(reason)."
+        return "Stopped \(connection.duckName) early after \(elapsed) seconds: \(reason)."
       }
-      return (message, message)
     }
 
     return .result(value: dialogText)

@@ -4,30 +4,6 @@ import DuckProtocol
 import Foundation
 
 enum IntentTelemetryTracer {
-  struct ConnectionHandle: Sendable {
-    var duckName: String
-    var contextLabel: String
-  }
-
-  static func ensureConnected(
-    timeout: Duration = .seconds(6),
-    refreshIfOpen: Bool = false
-  ) async throws -> ConnectionHandle {
-    @Dependency(\.duckSession) var duckSession
-
-    let initial = await duckSession.currentSnapshot()
-    if initial.controlOpen {
-      if refreshIfOpen {
-        await duckSession.refreshSkills()
-      }
-      let name = initial.phase.connected?.name ?? "Microduck"
-      return ConnectionHandle(duckName: name, contextLabel: "Warm (\(name))")
-    }
-
-    let identity = try await duckSession.ensureConnected(timeout)
-    return ConnectionHandle(duckName: identity.name, contextLabel: "Cold start (\(identity.name))")
-  }
-
   static func traceTool<Output>(
     intentName: String,
     displayTitle: String,

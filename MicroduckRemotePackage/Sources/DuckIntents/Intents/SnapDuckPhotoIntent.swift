@@ -21,16 +21,12 @@ public struct SnapDuckPhotoIntent: LiveActivityIntent {
   public init() {}
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckPhotoEntity> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
-    let (photo, _) = try await IntentTelemetryTracer.traceTool(
+    let photo = try await DuckIntentRunner.runConnectedTool(
       intentName: "SnapDuckPhotoIntent",
       displayTitle: "Snap Microduck Photo"
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(6))
-      setContext(connection.contextLabel)
-
+    ) { connection, duckSession in
       // Right after a cold start, the H.264 video track can trail controlChannel open by ~200-800 ms.
       var latest = await duckSession.currentSnapshot()
       if !latest.hasVideoTrack {
@@ -45,7 +41,7 @@ public struct SnapDuckPhotoIntent: LiveActivityIntent {
       let entity = DuckPhotoEntity(duckName: connection.duckName, frame: frame)
       DuckPhotoStore.shared.save(entity)
       let message = "Snapped a photo from \(connection.duckName)'s head camera (\(frame.width)×\(frame.height))."
-      return ((entity, message), message)
+      return (entity, message)
     }
 
     return .result(value: photo)

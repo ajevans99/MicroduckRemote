@@ -46,22 +46,15 @@ public struct SetDuckModeIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "SetDuckModeIntent",
       displayTitle: "Set Microduck Mode",
       parameters: [
         .init(key: "mode", value: mode.rawValue),
         .init(key: "enabled", value: enabled ? "true" : "false"),
-      ]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
-
+      ],
+      refreshIfOpen: true
+    ) { connection, duckSession in
       if enabled {
         let snapshot = await duckSession.currentSnapshot()
         if snapshot.latestState?.safety?.fallen == true {
@@ -85,8 +78,7 @@ public struct SetDuckModeIntent: LiveActivityIntent {
       }
 
       let stateWord = enabled ? "on" : "off"
-      let message = "Turned \(stateWord) \(mode.spokenLabel) on \(connection.duckName)."
-      return (message, message)
+      return "Turned \(stateWord) \(mode.spokenLabel) on \(connection.duckName)."
     }
 
     return .result(value: dialogText)

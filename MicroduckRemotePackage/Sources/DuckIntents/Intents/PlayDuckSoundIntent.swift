@@ -48,7 +48,6 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
     let tag = sound.soundTag
@@ -57,18 +56,15 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
       params.append(.init(key: "holdSeconds", value: holdSeconds.formatted(.number.precision(.fractionLength(0...2)))))
     }
 
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "PlayDuckSoundIntent",
       displayTitle: "Play Duck Sound",
-      parameters: params
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(5))
-      setContext(connection.contextLabel)
-
+      parameters: params,
+      connectionTimeout: .seconds(5)
+    ) { connection, duckSession in
       guard tag.isHoldable else {
         await duckSession.playSound(tag, nil)
-        let message = "\(connection.duckName) played \(tag.displayName)."
-        return (message, message)
+        return "\(connection.duckName) played \(tag.displayName)."
       }
 
       let clampedSeconds = min(max(holdSeconds, 0.3), 5.0)
@@ -89,8 +85,7 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
       }
 
       let formattedDuration = clampedSeconds.formatted(.number.precision(.fractionLength(0...1)))
-      let message = "\(connection.duckName) held Wheee for \(formattedDuration) seconds."
-      return (message, message)
+      return "\(connection.duckName) held Wheee for \(formattedDuration) seconds."
     }
 
     return .result(value: dialogText)

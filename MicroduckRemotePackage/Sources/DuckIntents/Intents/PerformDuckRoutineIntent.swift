@@ -31,7 +31,6 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckRoutine> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
     let stepsToRun = Array(routine.steps.prefix(6))
@@ -45,21 +44,17 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
       params.append(.init(key: "step \(idx + 1)", value: label))
     }
 
-    let (executedRoutine, _) = try await IntentTelemetryTracer.traceTool(
+    let executedRoutine = try await DuckIntentRunner.runConnectedTool(
       intentName: "PerformDuckRoutineIntent",
       displayTitle: "Perform Duck Routine",
-      parameters: params
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
+      parameters: params,
+      refreshIfOpen: true
+    ) { connection, duckSession in
       let duckName = connection.duckName
 
       guard !stepsToRun.isEmpty else {
         let message = "No steps were provided for \(duckName)'s routine."
-        return ((routine, message), message)
+        return (routine, message)
       }
 
       var completedSteps = 0
@@ -169,7 +164,7 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
         mood: routine.mood,
         steps: stepsToRun
       )
-      return ((executed, message), message)
+      return (executed, message)
     }
 
     return .result(value: executedRoutine)

@@ -44,28 +44,22 @@ public struct DirectDuckGazeIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "DirectDuckGazeIntent",
       displayTitle: "Aim Microduck Head",
       parameters: [
         .init(key: "horizontal", value: "\(Int(horizontalPercent.rounded()))%"),
         .init(key: "vertical", value: "\(Int(verticalPercent.rounded()))%"),
       ]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(6))
-      setContext(connection.contextLabel)
-
+    ) { connection, duckSession in
       let target = LookGeometry.lookTarget(
         normalizedX: min(max(horizontalPercent, -100), 100) / 100.0,
         normalizedY: min(max(verticalPercent, -100), 100) / 100.0
       )
       let result = await duckSession.sendLook(target)
-      let message = result?.clamped == true
+      return result?.clamped == true
         ? "Aimed \(connection.duckName)'s head toward your target (clamped to joint limits)."
         : "Aimed \(connection.duckName)'s head."
-      return (message, message)
     }
 
     return .result(value: dialogText)

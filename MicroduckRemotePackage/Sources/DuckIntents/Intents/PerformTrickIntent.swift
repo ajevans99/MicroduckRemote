@@ -30,21 +30,14 @@ public struct PerformTrickIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "PerformTrickIntent",
       displayTitle: "Perform Duck Trick",
       parameters: [
         .init(key: "trick", value: "\(trick.name) (\(trick.id))"),
-      ]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
-
+      ],
+      refreshIfOpen: true
+    ) { connection, duckSession in
       let snapshot = await duckSession.currentSnapshot()
       if snapshot.latestState?.safety?.fallen == true {
         throw DuckSessionError.duckFallen
@@ -57,8 +50,7 @@ public struct PerformTrickIntent: LiveActivityIntent {
       }
 
       try await duckSession.performSkill(trick.id)
-      let message = "\(connection.duckName) is performing \(trick.name)."
-      return (message, message)
+      return "\(connection.duckName) is performing \(trick.name)."
     }
 
     return .result(value: dialogText)

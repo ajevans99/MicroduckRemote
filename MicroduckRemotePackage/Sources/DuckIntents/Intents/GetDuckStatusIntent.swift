@@ -20,18 +20,11 @@ public struct GetDuckStatusIntent: LiveActivityIntent {
   public init() {}
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckStatusEntity> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
-    let status = try await IntentTelemetryTracer.traceTool(
+    let status = try await DuckIntentRunner.runConnectedTool(
       intentName: "GetDuckStatusIntent",
-      displayTitle: "Get Microduck Status"
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
-
+      displayTitle: "Get Microduck Status",
+      refreshIfOpen: true
+    ) { _, duckSession in
       let snapshot = await duckSession.currentSnapshot()
       let entity = DuckStatusEntity(snapshot: snapshot)
       DuckStatusStore.shared.save(entity)

@@ -300,3 +300,39 @@ public enum DuckMoveStepExecutor {
     }
   }
 }
+
+/// Connection metadata returned when an App Intent ensures a live WebRTC session.
+public struct IntentConnection: Equatable, Sendable {
+  public var duckName: String
+  public var wasColdStart: Bool
+
+  public init(duckName: String, wasColdStart: Bool) {
+    self.duckName = duckName
+    self.wasColdStart = wasColdStart
+  }
+
+  public var telemetryLabel: String {
+    wasColdStart ? "Cold start (\(duckName))" : "Warm (\(duckName))"
+  }
+}
+
+extension DuckSessionClient {
+  /// Reuses an open WebRTC control channel (optionally refreshing live skills/policies) or
+  /// performs a cold-start connection up to `timeout`.
+  public func connectForIntent(
+    timeout: Duration = .seconds(6),
+    refreshIfOpen: Bool = false
+  ) async throws -> IntentConnection {
+    let initial = await currentSnapshot()
+    if initial.controlOpen {
+      if refreshIfOpen {
+        await refreshSkills()
+      }
+      let name = initial.phase.connected?.name ?? "Microduck"
+      return IntentConnection(duckName: name, wasColdStart: false)
+    }
+
+    let identity = try await ensureConnected(timeout)
+    return IntentConnection(duckName: identity.name, wasColdStart: true)
+  }
+}

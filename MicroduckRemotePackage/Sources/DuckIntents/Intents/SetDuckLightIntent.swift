@@ -38,25 +38,18 @@ public struct SetDuckLightIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
-
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let dialogText = try await DuckIntentRunner.runConnectedTool(
       intentName: "SetDuckLightIntent",
       displayTitle: "Set Microduck Light",
       parameters: [.init(key: "color", value: color.rawValue)]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(timeout: .seconds(6))
-      setContext(connection.contextLabel)
-
-      let message: String
+    ) { connection, duckSession in
       if color == .off {
         try await duckSession.setFlashlightColor(false, "white")
-        message = "Turned off \(connection.duckName)'s light."
+        return "Turned off \(connection.duckName)'s light."
       } else {
         try await duckSession.setFlashlightColor(true, color.rawValue)
-        message = "Set \(connection.duckName)'s light to \(color.rawValue)."
+        return "Set \(connection.duckName)'s light to \(color.rawValue)."
       }
-      return (message, message)
     }
 
     return .result(value: dialogText)

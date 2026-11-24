@@ -217,4 +217,41 @@ import Testing
       ]
     )
   }
+
+  @Test func connectForIntentHandlesWarmRefreshAndColdStart() async throws {
+    let events = LockIsolated<[String]>([])
+
+    var warmSession = DuckSessionClient.previewValue
+    warmSession.refreshSkills = { events.withValue { $0.append("refresh") } }
+    warmSession.ensureConnected = { _ in
+      events.withValue { $0.append("ensureConnected") }
+      return DuckIdentity(peerID: "sim", name: "duck-eb55", isSimulated: true)
+    }
+
+    let warmNoRefresh = try await warmSession.connectForIntent(refreshIfOpen: false)
+    expectNoDifference(warmNoRefresh, IntentConnection(duckName: "duck-eb55", wasColdStart: false))
+    expectNoDifference(warmNoRefresh.telemetryLabel, "Warm (duck-eb55)")
+    expectNoDifference(events.value, [])
+
+    let warmWithRefresh = try await warmSession.connectForIntent(refreshIfOpen: true)
+    expectNoDifference(warmWithRefresh, IntentConnection(duckName: "duck-eb55", wasColdStart: false))
+    expectNoDifference(events.value, ["refresh"])
+
+    var disconnected = DuckSessionSnapshot.previewConnected
+    disconnected.controlOpen = false
+    disconnected.phase = .disconnected
+    let frozenDisconnected = disconnected
+
+    var coldSession = DuckSessionClient.previewValue
+    coldSession.currentSnapshot = { frozenDisconnected }
+    coldSession.ensureConnected = { _ in
+      events.withValue { $0.append("ensureConnected") }
+      return DuckIdentity(peerID: "hw-1", name: "duck-01", isSimulated: false)
+    }
+
+    let cold = try await coldSession.connectForIntent(refreshIfOpen: true)
+    expectNoDifference(cold, IntentConnection(duckName: "duck-01", wasColdStart: true))
+    expectNoDifference(cold.telemetryLabel, "Cold start (duck-01)")
+    expectNoDifference(events.value, ["refresh", "ensureConnected"])
+  }
 }

@@ -31,20 +31,14 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
   }
 
   public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckStatusEntity> {
-    @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
-    let status = try await IntentTelemetryTracer.traceTool(
+    let status = try await DuckIntentRunner.runConnectedTool(
       intentName: "SetDuckPostureIntent",
       displayTitle: "Set Microduck Posture",
-      parameters: [.init(key: "posture", value: posture.rawValue)]
-    ) { setContext in
-      let connection = try await IntentTelemetryTracer.ensureConnected(
-        timeout: .seconds(6),
-        refreshIfOpen: true
-      )
-      setContext(connection.contextLabel)
-
+      parameters: [.init(key: "posture", value: posture.rawValue)],
+      refreshIfOpen: true
+    ) { connection, duckSession in
       let snapshot = await duckSession.currentSnapshot()
       let isFallen = snapshot.latestState?.safety?.fallen == true
       let isEnabled = snapshot.policies?.enabled == true
