@@ -1078,6 +1078,21 @@ extension DuckSessionClient: DependencyKey {
       sendLook: { look in
         try? await LiveDuckSessionEngine.shared.callRPC("robot.look", params: look, quiet: true)
       },
+      sendMouth: { mouth in
+        await MainActor.run {
+          LiveDuckSessionEngine.shared.sendFireAndForget("robot.mouth", params: mouth.clamped)
+        }
+      },
+      sendHead: { head in
+        await MainActor.run {
+          LiveDuckSessionEngine.shared.sendFireAndForget("robot.head", params: head.clamped)
+        }
+      },
+      sendPose: { pose in
+        await MainActor.run {
+          LiveDuckSessionEngine.shared.sendFireAndForget("robot.pose", params: pose.clamped)
+        }
+      },
       setEnabled: { @MainActor on in
         let engine = LiveDuckSessionEngine.shared
         let res: IntentResult = try await engine.callRPC(
@@ -1190,6 +1205,14 @@ extension DuckSessionClient: DependencyKey {
         let res: IntentResult = try await engine.callRPC(
           "robot.soccer",
           params: RobotSoccerParams(active: on, autonomous: on)
+        )
+        try engine.ensureIntentAccepted(res)
+      },
+      setTheremin: { @MainActor on in
+        let engine = LiveDuckSessionEngine.shared
+        let res: IntentResult = try await engine.callRPC(
+          "robot.theremin",
+          params: RobotActiveParams(active: on)
         )
         try engine.ensureIntentAccepted(res)
       },

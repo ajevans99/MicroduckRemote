@@ -184,4 +184,158 @@ import Testing
       ]
     )
   }
+
+  @Test func performDuckRoutineDrivesBeakHeadTiltAndCrouchWithClampingAndReset() async throws {
+    let trace = LockIsolated<[String]>([])
+
+    let step = DuckRoutineStep(
+      caption: "Curious gasp",
+      sound: .inquire,
+      lookHorizontalPercent: -50,
+      lookVerticalPercent: -20,
+      durationSeconds: 0.4,
+      beakOpenPercent: 140,
+      headTiltPercent: -150,
+      crouchPercent: 120
+    )
+    expectNoDifference(step.clampedBeakOpenPercent, 100)
+    expectNoDifference(step.clampedHeadTiltPercent, -100)
+    expectNoDifference(step.clampedCrouchPercent, 100)
+    expectNoDifference(step.summarySubtitle.contains("Beak 100%"), true)
+    expectNoDifference(step.summarySubtitle.contains("Tilt -100%"), true)
+    expectNoDifference(step.summarySubtitle.contains("Crouch 100%"), true)
+
+    let routine = DuckRoutine(
+      title: "Curious Crouch",
+      mood: "Curious",
+      steps: [
+        step,
+        DuckRoutineStep(
+          caption: "Stand tall & tilt right",
+          durationSeconds: 0.4,
+          beakOpenPercent: 0,
+          headTiltPercent: 50,
+          crouchPercent: 0
+        ),
+      ]
+    )
+
+    try await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.sendLook = { _ in
+        trace.withValue { $0.append("look") }
+        return RobotLookResult(
+          head: RobotHeadParams(neckPitch: 0.0, headPitch: -0.15, headYaw: 0.35, headRoll: 0.0),
+          accepted: true,
+          clamped: false
+        )
+      }
+      session.sendHead = { head in
+        trace.withValue {
+          $0.append(
+            "head:\(String(format: "%.2f", head.headYaw)):\(String(format: "%.2f", head.headRoll))"
+          )
+        }
+      }
+      session.sendMouth = { mouth in
+        trace.withValue { $0.append("mouth:\(String(format: "%.2f", mouth.open))") }
+      }
+      session.sendPose = { pose in
+        trace.withValue { $0.append("pose:\(pose.active):\(String(format: "%.3f", pose.z))") }
+      }
+      session.playSound = { tag, _ in
+        trace.withValue { $0.append("sound:\(tag.rawValue)") }
+      }
+      session.sendMove = { _ in
+        trace.withValue { $0.append("zero") }
+      }
+      $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
+    } operation: {
+      _ = try await PerformDuckRoutineIntent(routine: routine).perform()
+    }
+
+    expectNoDifference(
+      trace.value,
+      [
+        "look",
+        "head:0.35:-0.43",
+        "mouth:1.00",
+        "pose:true:-0.025",
+        "sound:inquire",
+        "head:0.00:0.21",
+        "mouth:0.00",
+        "pose:false:0.000",
+        "zero",
+        "mouth:0.00",
+        "pose:false:0.000",
+        "head:0.00:0.00",
+      ]
+    )
+  }
+
+  @Test func performDuckRoutineResetsBeakPoseAndHeadTiltOnCancellation() async {
+    let trace = LockIsolated<[String]>([])
+    let poseSent = AsyncStream.makeStream(of: Void.self)
+
+    let routine = DuckRoutine(
+      title: "Sneaky Peek",
+      mood: "Sneaky",
+      steps: [
+        DuckRoutineStep(
+          caption: "Crouch and open beak",
+          durationSeconds: 2.0,
+          beakOpenPercent: 75,
+          headTiltPercent: 60,
+          crouchPercent: 80
+        )
+      ]
+    )
+
+    let task = Task {
+      try await withDependencies {
+        var session = DuckSessionClient.previewValue
+        session.sendHead = { head in
+          trace.withValue { $0.append("head:\(String(format: "%.2f", head.headRoll))") }
+        }
+        session.sendMouth = { mouth in
+          trace.withValue { $0.append("mouth:\(String(format: "%.2f", mouth.open))") }
+        }
+        session.sendPose = { pose in
+          trace.withValue { $0.append("pose:\(pose.active)") }
+          if pose.active {
+            poseSent.continuation.yield()
+          }
+        }
+        session.sendMove = { _ in
+          trace.withValue { $0.append("zero") }
+        }
+        $0.duckSession = session
+        $0.continuousClock = ContinuousClock()
+      } operation: {
+        _ = try await PerformDuckRoutineIntent(routine: routine).perform()
+      }
+    }
+
+    var iterator = poseSent.stream.makeAsyncIterator()
+    _ = await iterator.next()
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.value
+    }
+
+    expectNoDifference(
+      trace.value,
+      [
+        "head:0.26",
+        "mouth:0.75",
+        "pose:true",
+        "zero",
+        "mouth:0.00",
+        "pose:false",
+        "head:0.00",
+      ]
+    )
+  }
 }

@@ -40,14 +40,22 @@ public final class CockpitModel {
 
   public var showTofOverlay = false
   public var showSoundDrawer = false
+  public var showExpressiveDrawer = false
   public var activeSkillName: String?
   public var isHoldingWheee = false
+  public var isHoldingChomp = false
+  public var beakOpening = 0.0
+  public var headTilt = 0.0
+  public var crouchDepth = 0.0
   public var isStandingBackUp = false
   public var autonomousEnabled = false
   public var flashlightEnabled = false
   public var laserTrackEnabled = false
   public var soccerEnabled = false
+  public var thereminEnabled = false
   public var alert: AlertDestination?
+
+  @ObservationIgnored private var chompTick = 0
 
   public var onConnectionPillTapped: () -> Void
 
@@ -90,6 +98,10 @@ public final class CockpitModel {
 
   public var isFallen: Bool {
     snapshot.latestState?.safety?.fallen == true
+  }
+
+  public var hasActiveExpression: Bool {
+    beakOpening > 0.001 || isHoldingChomp || abs(headTilt) > 0.001 || crouchDepth > 0.001
   }
 
   public func task() async {
@@ -138,6 +150,12 @@ public final class CockpitModel {
       }
       if snapshot.controlOpen, isHoldingWheee {
         await duckSession.playSound(.wheee, true)
+      }
+      if snapshot.controlOpen, isHoldingChomp {
+        chompTick += 1
+        let openLevel = (chompTick / 2).isMultiple(of: 2) ? 1.0 : 0.0
+        beakOpening = openLevel
+        await duckSession.sendMouth(RobotMouthParams(open: openLevel))
       }
     }
   }
@@ -237,7 +255,19 @@ public final class CockpitModel {
     leftStickX = 0
     leftStickY = 0
     rightStickX = 0
+    let hadExpression = hasActiveExpression
+    if hadExpression {
+      isHoldingChomp = false
+      chompTick = 0
+      beakOpening = 0
+      headTilt = 0
+      crouchDepth = 0
+    }
     await duckSession.sendMove(.zero)
+    if hadExpression, snapshot.controlOpen {
+      await duckSession.sendMouth(.closed)
+      await duckSession.sendPose(.nominal)
+    }
     do {
       try await duckSession.stop()
     } catch {
@@ -292,6 +322,80 @@ public final class CockpitModel {
   public func soundDrawerToggleTapped() {
     haptics.selectionChanged()
     showSoundDrawer.toggle()
+    if showSoundDrawer {
+      showExpressiveDrawer = false
+    }
+  }
+
+  public func expressiveDrawerToggleTapped() {
+    haptics.selectionChanged()
+    showExpressiveDrawer.toggle()
+    if showExpressiveDrawer {
+      showSoundDrawer = false
+    }
+  }
+
+  public func beakOpeningChanged(_ value: Double) async {
+    let clamped = min(max(value, 0.0), 1.0)
+    isHoldingChomp = false
+    chompTick = 0
+    beakOpening = clamped
+    if snapshot.controlOpen {
+      await duckSession.sendMouth(RobotMouthParams(open: clamped))
+    }
+  }
+
+  public func chompHoldChanged(isPressed: Bool) async {
+    if isPressed == isHoldingChomp { return }
+    isHoldingChomp = isPressed
+    chompTick = 0
+    if isPressed {
+      haptics.impactMedium()
+      beakOpening = 1.0
+      if snapshot.controlOpen {
+        await duckSession.sendMouth(.wideOpen)
+      }
+    } else {
+      beakOpening = 0.0
+      if snapshot.controlOpen {
+        await duckSession.sendMouth(.closed)
+      }
+    }
+  }
+
+  public func headTiltChanged(_ normalized: Double) async {
+    let clamped = min(max(normalized, -1.0), 1.0)
+    headTilt = clamped
+    if snapshot.controlOpen {
+      await duckSession.sendHead(
+        RobotHeadParams(headRoll: clamped * DuckConstants.maxHeadRollRadians)
+      )
+    }
+  }
+
+  public func crouchDepthChanged(_ normalized: Double) async {
+    let clamped = min(max(normalized, 0.0), 1.0)
+    crouchDepth = clamped <= 0.001 ? 0.0 : clamped
+    guard snapshot.controlOpen else { return }
+    if crouchDepth == 0.0 {
+      await duckSession.sendPose(.nominal)
+    } else {
+      await duckSession.sendPose(RobotPoseParams.crouch(percent: crouchDepth * 100.0))
+    }
+  }
+
+  public func resetExpressionTapped() async {
+    haptics.selectionChanged()
+    isHoldingChomp = false
+    chompTick = 0
+    beakOpening = 0.0
+    headTilt = 0.0
+    crouchDepth = 0.0
+    if snapshot.controlOpen {
+      await duckSession.sendMouth(.closed)
+      await duckSession.sendHead(.neutral)
+      await duckSession.sendPose(.nominal)
+    }
   }
 
   public func soundButtonTapped(_ tag: SoundTag) async {
@@ -357,6 +461,17 @@ public final class CockpitModel {
     do {
       try await duckSession.setSoccer(next)
       soccerEnabled = next
+      haptics.selectionChanged()
+    } catch {
+      alert = .errorMessage(error.localizedDescription)
+    }
+  }
+
+  public func thereminToggleTapped() async {
+    let next = !thereminEnabled
+    do {
+      try await duckSession.setTheremin(next)
+      thereminEnabled = next
       haptics.selectionChanged()
     } catch {
       alert = .errorMessage(error.localizedDescription)

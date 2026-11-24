@@ -8,7 +8,7 @@ import Foundation
 public struct PerformDuckRoutineIntent: LiveActivityIntent {
   public static let title: LocalizedStringResource = "Perform Duck Routine"
   public static let description = IntentDescription(
-    "Performs an improvised multi-step expressive choreography on Microduck combining head gaze, sounds, RGB face light, bounded steps, and built-in tricks. Use this for creative moods, reactions, celebrations, or skits (for example 'act suspicious', 'celebrate', or 'greet my guest')."
+    "Performs an improvised multi-step expressive choreography on Microduck combining head gaze, curious head tilt, beak opening, standing crouch, sounds, RGB face light, bounded steps, and built-in tricks. Use this for creative moods, reactions, celebrations, or skits (for example 'act suspicious', 'celebrate', or 'greet my guest')."
   )
 
   public static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
@@ -59,8 +59,30 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
 
       var completedSteps = 0
       var didTouchLight = false
+      var didTouchBeak = false
+      var didTouchHeadTilt = false
+      var didTouchPose = false
       var didHoldWheee = false
       var earlyStopNote: String?
+
+      func resetExpressiveState() async {
+        if didHoldWheee {
+          await duckSession.playSound(.wheee, false)
+        }
+        await duckSession.sendMove(.zero)
+        if didTouchBeak {
+          await duckSession.sendMouth(.closed)
+        }
+        if didTouchPose {
+          await duckSession.sendPose(.nominal)
+        }
+        if didTouchHeadTilt {
+          await duckSession.sendHead(.neutral)
+        }
+        if didTouchLight {
+          try? await duckSession.setFlashlightColor(false, "white")
+        }
+      }
 
       do {
         for step in stepsToRun {
@@ -86,14 +108,35 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
           }
 
           if step.lookHorizontalPercent != 0 || step.lookVerticalPercent != 0 {
-            _ = await duckSession.sendLook(step.lookTarget)
+            let lookResult = await duckSession.sendLook(step.lookTarget)
+            if let headRoll = step.headRollRadians {
+              didTouchHeadTilt = true
+              if headRoll != 0 {
+                var head = lookResult?.head ?? RobotHeadParams()
+                head.headRoll = headRoll
+                await duckSession.sendHead(head)
+              }
+            }
+          } else if let headRoll = step.headRollRadians {
+            didTouchHeadTilt = true
+            await duckSession.sendHead(RobotHeadParams(headRoll: headRoll))
+          }
+
+          if let mouthTarget = step.mouthTarget {
+            didTouchBeak = true
+            await duckSession.sendMouth(mouthTarget)
+          }
+
+          let isStanding = current.policies?.enabled != false && current.policies?.sitting != true
+
+          if let poseTarget = step.poseTarget, isStanding {
+            didTouchPose = true
+            await duckSession.sendPose(poseTarget)
           }
 
           if let sound = step.sound, !sound.soundTag.isHoldable {
             await duckSession.playSound(sound.soundTag, nil)
           }
-
-          let isStanding = current.policies?.enabled != false && current.policies?.sitting != true
 
           if let trick = step.builtInTrick, isStanding {
             try await duckSession.performSkill(trick.rawValue)
@@ -136,20 +179,11 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
           completedSteps += 1
         }
       } catch {
-        if didHoldWheee {
-          await duckSession.playSound(.wheee, false)
-        }
-        await duckSession.sendMove(.zero)
-        if didTouchLight {
-          try? await duckSession.setFlashlightColor(false, "white")
-        }
+        await resetExpressiveState()
         throw error
       }
 
-      await duckSession.sendMove(.zero)
-      if didTouchLight {
-        try? await duckSession.setFlashlightColor(false, "white")
-      }
+      await resetExpressiveState()
 
       let routineTitle = routine.title.isEmpty ? "its routine" : "“\(routine.title)”"
       let message: String

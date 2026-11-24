@@ -113,4 +113,66 @@ import Testing
       )
     }
   }
+
+  @Test @MainActor func expressiveControlsSendClampedMouthHeadPoseAndReset() async {
+    let recordedMouths = LockIsolated<[RobotMouthParams]>([])
+    let recordedHeads = LockIsolated<[RobotHeadParams]>([])
+    let recordedPoses = LockIsolated<[RobotPoseParams]>([])
+    let thereminToggles = LockIsolated<[Bool]>([])
+
+    await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.sendMouth = { mouth in recordedMouths.withValue { $0.append(mouth) } }
+      session.sendHead = { head in recordedHeads.withValue { $0.append(head) } }
+      session.sendPose = { pose in recordedPoses.withValue { $0.append(pose) } }
+      session.setTheremin = { on in thereminToggles.withValue { $0.append(on) } }
+      $0.duckSession = session
+      $0.haptics = .previewValue
+    } operation: {
+      let model = CockpitModel()
+      model.snapshot = .previewConnected
+
+      model.expressiveDrawerToggleTapped()
+      expectNoDifference(model.showExpressiveDrawer, true)
+      expectNoDifference(model.showSoundDrawer, false)
+
+      await model.beakOpeningChanged(0.6)
+      await model.chompHoldChanged(isPressed: true)
+      await model.chompHoldChanged(isPressed: false)
+      await model.headTiltChanged(-1.0)
+      await model.crouchDepthChanged(1.0)
+      expectNoDifference(model.hasActiveExpression, true)
+
+      await model.resetExpressionTapped()
+      expectNoDifference(model.hasActiveExpression, false)
+
+      await model.thereminToggleTapped()
+      expectNoDifference(model.thereminEnabled, true)
+
+      expectNoDifference(
+        recordedMouths.value,
+        [
+          RobotMouthParams(open: 0.6),
+          .wideOpen,
+          .closed,
+          .closed,
+        ]
+      )
+      expectNoDifference(
+        recordedHeads.value,
+        [
+          RobotHeadParams(headRoll: -DuckConstants.maxHeadRollRadians),
+          .neutral,
+        ]
+      )
+      expectNoDifference(
+        recordedPoses.value,
+        [
+          RobotPoseParams(z: DuckConstants.minPoseZ, roll: 0, pitch: 0, active: true),
+          .nominal,
+        ]
+      )
+      expectNoDifference(thereminToggles.value, [true])
+    }
+  }
 }

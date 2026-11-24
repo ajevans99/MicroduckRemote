@@ -116,6 +116,75 @@ import Testing
 
     let rebootJSON = String(decoding: try encoder.encode(RobotRebootMotorsParams()), as: UTF8.self)
     expectNoDifference(rebootJSON, #"{"ids":[]}"#)
+
+    let mouthJSON = String(decoding: try encoder.encode(RobotMouthParams(open: 0.75)), as: UTF8.self)
+    expectNoDifference(mouthJSON, #"{"open":0.75}"#)
+
+    let headJSON = String(
+      decoding: try encoder.encode(RobotHeadParams(neckPitch: 0.1, headPitch: -0.2, headYaw: 0.3, headRoll: -0.25)),
+      as: UTF8.self
+    )
+    expectNoDifference(
+      headJSON,
+      #"{"head_pitch":-0.2,"head_roll":-0.25,"head_yaw":0.3,"neck_pitch":0.1}"#
+    )
+
+    let poseJSON = String(
+      decoding: try encoder.encode(RobotPoseParams(z: -0.02, roll: 0.1, pitch: -0.1, active: true)),
+      as: UTF8.self
+    )
+    expectNoDifference(poseJSON, #"{"active":true,"pitch":-0.1,"roll":0.1,"z":-0.02}"#)
+  }
+
+  @Test func clampsMouthHeadAndPoseToTrainedHardwareLimits() throws {
+    expectNoDifference(RobotMouthParams(open: 1.8).clamped, .wideOpen)
+    expectNoDifference(RobotMouthParams(open: -0.4).clamped, .closed)
+    expectNoDifference(RobotMouthParams.fromPercent(150), .wideOpen)
+    expectNoDifference(RobotMouthParams.fromPercent(-20), .closed)
+
+    expectNoDifference(
+      RobotHeadParams(neckPitch: 0.1, headPitch: 0.2, headYaw: -0.3, headRoll: 1.2, alpha: 2.0).clamped,
+      RobotHeadParams(
+        neckPitch: 0.1,
+        headPitch: 0.2,
+        headYaw: -0.3,
+        headRoll: DuckConstants.maxHeadRollRadians,
+        alpha: 1.0
+      )
+    )
+    expectNoDifference(
+      RobotHeadParams.rollRadians(tiltPercent: -150),
+      -DuckConstants.maxHeadRollRadians
+    )
+
+    expectNoDifference(
+      RobotPoseParams(z: -0.10, roll: 0.9, pitch: -0.9, active: true).clamped,
+      RobotPoseParams(
+        z: DuckConstants.minPoseZ,
+        roll: DuckConstants.maxPoseRollRadians,
+        pitch: -DuckConstants.maxPosePitchRadians,
+        active: true
+      )
+    )
+    expectNoDifference(
+      RobotPoseParams(z: 0.5, roll: 0, pitch: 0, active: true).clamped.z,
+      DuckConstants.maxPoseZ
+    )
+    expectNoDifference(RobotPoseParams.crouch(percent: 0), .nominal)
+    expectNoDifference(
+      RobotPoseParams.crouch(percent: 100),
+      RobotPoseParams(z: DuckConstants.minPoseZ, roll: 0, pitch: 0, active: true)
+    )
+
+    let lookJSON = Data(
+      #"{"head":{"neck_pitch":0.05,"head_pitch":-0.1,"head_yaw":0.4,"head_roll":0.0},"clamped":false}"#.utf8
+    )
+    let lookResult = try JSONDecoder().decode(RobotLookResult.self, from: lookJSON)
+    expectNoDifference(
+      lookResult.head,
+      RobotHeadParams(neckPitch: 0.05, headPitch: -0.1, headYaw: 0.4, headRoll: 0.0)
+    )
+    expectNoDifference(lookResult.clamped, false)
   }
 
   @Test func hubManifestAndSkillConversionMatchDaemonContract() throws {

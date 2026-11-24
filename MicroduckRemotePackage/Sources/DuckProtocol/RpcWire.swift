@@ -400,14 +400,119 @@ public struct RobotLookParams: Codable, Equatable, Sendable {
 }
 
 public struct RobotLookResult: Codable, Equatable, Sendable {
+  public var head: RobotHeadParams?
   public var accepted: Bool?
   public var clamped: Bool?
   public var reason: String?
 
-  public init(accepted: Bool? = true, clamped: Bool? = false, reason: String? = nil) {
+  public init(
+    head: RobotHeadParams? = nil,
+    accepted: Bool? = true,
+    clamped: Bool? = false,
+    reason: String? = nil
+  ) {
+    self.head = head
     self.accepted = accepted
     self.clamped = clamped
     self.reason = reason
+  }
+}
+
+public struct RobotMouthParams: Codable, Equatable, Sendable {
+  public var open: Double
+
+  public init(open: Double) {
+    self.open = open
+  }
+
+  public static let closed = RobotMouthParams(open: 0.0)
+  public static let wideOpen = RobotMouthParams(open: 1.0)
+
+  public var clamped: RobotMouthParams {
+    RobotMouthParams(open: min(max(open, 0.0), 1.0))
+  }
+
+  public static func fromPercent(_ percent: Double) -> RobotMouthParams {
+    RobotMouthParams(open: min(max(percent, 0.0), 100.0) / 100.0)
+  }
+}
+
+public struct RobotHeadParams: Codable, Equatable, Sendable {
+  public var neckPitch: Double
+  public var headPitch: Double
+  public var headYaw: Double
+  public var headRoll: Double
+  public var alpha: Double?
+
+  enum CodingKeys: String, CodingKey {
+    case neckPitch = "neck_pitch"
+    case headPitch = "head_pitch"
+    case headYaw = "head_yaw"
+    case headRoll = "head_roll"
+    case alpha
+  }
+
+  public init(
+    neckPitch: Double = 0,
+    headPitch: Double = 0,
+    headYaw: Double = 0,
+    headRoll: Double = 0,
+    alpha: Double? = nil
+  ) {
+    self.neckPitch = neckPitch
+    self.headPitch = headPitch
+    self.headYaw = headYaw
+    self.headRoll = headRoll
+    self.alpha = alpha
+  }
+
+  public static let neutral = RobotHeadParams()
+
+  public var clamped: RobotHeadParams {
+    RobotHeadParams(
+      neckPitch: neckPitch,
+      headPitch: headPitch,
+      headYaw: headYaw,
+      headRoll: min(max(headRoll, -DuckConstants.maxHeadRollRadians), DuckConstants.maxHeadRollRadians),
+      alpha: alpha.map { min(max($0, 0.0), 1.0) }
+    )
+  }
+
+  public static func rollRadians(tiltPercent: Double) -> Double {
+    let clampedPercent = min(max(tiltPercent, -100.0), 100.0)
+    return (clampedPercent / 100.0) * DuckConstants.maxHeadRollRadians
+  }
+}
+
+public struct RobotPoseParams: Codable, Equatable, Sendable {
+  public var z: Double
+  public var roll: Double
+  public var pitch: Double
+  public var active: Bool
+
+  public init(z: Double = 0, roll: Double = 0, pitch: Double = 0, active: Bool = true) {
+    self.z = z
+    self.roll = roll
+    self.pitch = pitch
+    self.active = active
+  }
+
+  public static let nominal = RobotPoseParams(z: 0, roll: 0, pitch: 0, active: false)
+
+  public var clamped: RobotPoseParams {
+    RobotPoseParams(
+      z: min(max(z, DuckConstants.minPoseZ), DuckConstants.maxPoseZ),
+      roll: min(max(roll, -DuckConstants.maxPoseRollRadians), DuckConstants.maxPoseRollRadians),
+      pitch: min(max(pitch, -DuckConstants.maxPosePitchRadians), DuckConstants.maxPosePitchRadians),
+      active: active
+    )
+  }
+
+  public static func crouch(percent: Double) -> RobotPoseParams {
+    let clampedPercent = min(max(percent, 0.0), 100.0)
+    guard clampedPercent > 0.0 else { return .nominal }
+    let z = (clampedPercent / 100.0) * DuckConstants.minPoseZ
+    return RobotPoseParams(z: z, roll: 0, pitch: 0, active: true).clamped
   }
 }
 

@@ -63,6 +63,24 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
   )
   public var lightColor: DuckLightColor?
 
+  @Property(
+    title: "Beak Opening (%)",
+    description: "Optional beak opening from 0 (closed) to 100 (wide open). Omit to leave the beak unchanged."
+  )
+  public var beakOpenPercent: Int?
+
+  @Property(
+    title: "Head Tilt (%)",
+    description: "Optional curious head roll tilt from -100 (tilt left) through 0 (level) to 100 (tilt right). Omit to leave head roll unchanged."
+  )
+  public var headTiltPercent: Int?
+
+  @Property(
+    title: "Crouch (%)",
+    description: "Optional standing crouch depth from 0 (normal height) to 100 (low crouch). Omit to leave standing height unchanged."
+  )
+  public var crouchPercent: Int?
+
   public var displayRepresentation: DisplayRepresentation {
     DisplayRepresentation(
       title: LocalizedStringResource(stringLiteral: caption.isEmpty ? "Duck Beat" : caption),
@@ -83,6 +101,15 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     }
     if lookHorizontalPercent != 0 || lookVerticalPercent != 0 {
       parts.append("Look (\(clampedHorizontalPercent)%, \(clampedVerticalPercent)%)")
+    }
+    if let beak = clampedBeakOpenPercent {
+      parts.append(beak == 0 ? "Beak closed" : "Beak \(beak)%")
+    }
+    if let tilt = clampedHeadTiltPercent, tilt != 0 {
+      parts.append("Tilt \(tilt > 0 ? "+\(tilt)" : "\(tilt)")%")
+    }
+    if let crouch = clampedCrouchPercent, crouch > 0 {
+      parts.append("Crouch \(crouch)%")
     }
     if let lightColor, lightColor != .off {
       parts.append("\(lightColor.rawValue.capitalized) light")
@@ -108,6 +135,30 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     Double(min(max(speedPercent, 20), 100))
   }
 
+  public var clampedBeakOpenPercent: Int? {
+    beakOpenPercent.map { min(max($0, 0), 100) }
+  }
+
+  public var clampedHeadTiltPercent: Int? {
+    headTiltPercent.map { min(max($0, -100), 100) }
+  }
+
+  public var clampedCrouchPercent: Int? {
+    crouchPercent.map { min(max($0, 0), 100) }
+  }
+
+  public var mouthTarget: RobotMouthParams? {
+    clampedBeakOpenPercent.map { RobotMouthParams.fromPercent(Double($0)) }
+  }
+
+  public var headRollRadians: Double? {
+    clampedHeadTiltPercent.map { RobotHeadParams.rollRadians(tiltPercent: Double($0)) }
+  }
+
+  public var poseTarget: RobotPoseParams? {
+    clampedCrouchPercent.map { RobotPoseParams.crouch(percent: Double($0)) }
+  }
+
   public var lookTarget: RobotLookParams {
     LookGeometry.lookTarget(
       normalizedX: Double(clampedHorizontalPercent) / 100.0,
@@ -125,6 +176,9 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     self.speedPercent = 60
     self.builtInTrick = nil
     self.lightColor = nil
+    self.beakOpenPercent = nil
+    self.headTiltPercent = nil
+    self.crouchPercent = nil
   }
 
   public init(
@@ -136,7 +190,10 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     durationSeconds: Double = 0.8,
     speedPercent: Int = 60,
     builtInTrick: DuckBuiltInTrick? = nil,
-    lightColor: DuckLightColor? = nil
+    lightColor: DuckLightColor? = nil,
+    beakOpenPercent: Int? = nil,
+    headTiltPercent: Int? = nil,
+    crouchPercent: Int? = nil
   ) {
     self.caption = caption
     self.sound = sound
@@ -147,6 +204,9 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
     self.speedPercent = speedPercent
     self.builtInTrick = builtInTrick
     self.lightColor = lightColor
+    self.beakOpenPercent = beakOpenPercent
+    self.headTiltPercent = headTiltPercent
+    self.crouchPercent = crouchPercent
   }
 
   public static func == (lhs: DuckRoutineStep, rhs: DuckRoutineStep) -> Bool {
@@ -159,5 +219,8 @@ public struct DuckRoutineStep: TransientAppEntity, Equatable, Sendable {
       && lhs.speedPercent == rhs.speedPercent
       && lhs.builtInTrick == rhs.builtInTrick
       && lhs.lightColor == rhs.lightColor
+      && lhs.beakOpenPercent == rhs.beakOpenPercent
+      && lhs.headTiltPercent == rhs.headTiltPercent
+      && lhs.crouchPercent == rhs.crouchPercent
   }
 }

@@ -16,6 +16,14 @@ public enum DuckConstants {
   public static let minBackwardBreakawayVelocity = 0.42
   public static let maxBackwardLinearVelocity = 0.50
   public static let maxAngularVelocity = 1.5
+  /// Trained standing body-pose ranges from `duck-ipc-proto` (`PoseParams`).
+  /// The robot does not clamp `robot.pose`, so clients must stay within these limits.
+  public static let minPoseZ = -0.025
+  public static let maxPoseZ = 0.010
+  public static let maxPoseRollRadians = 0.26
+  public static let maxPosePitchRadians = 0.26
+  /// Mechanical `head_roll` travel limit from Microduck MJCF (±0.4363 rad ≈ ±25°).
+  public static let maxHeadRollRadians = 0.43
 
   /// Maps a normalized backward magnitude in `0...1` into the effective backward
   /// walking band `[minBackwardBreakawayVelocity, maxBackwardLinearVelocity]`.

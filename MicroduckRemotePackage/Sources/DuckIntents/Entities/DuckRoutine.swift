@@ -22,7 +22,7 @@ public struct DuckRoutine: TransientAppEntity, SnippetRepresentableEntity, Equat
 
   @Property(
     title: "Steps",
-    description: "Between 2 and 6 ordered expressive steps combining head gaze, vocal sounds, bounded movement, RGB face light, or built-in tricks."
+    description: "Between 2 and 6 ordered expressive steps combining head gaze, head tilt, beak opening, standing crouch, vocal sounds, bounded movement, RGB face light, or built-in tricks."
   )
   public var steps: [DuckRoutineStep]
 

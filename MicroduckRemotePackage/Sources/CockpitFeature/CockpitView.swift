@@ -79,6 +79,11 @@ public struct CockpitView: View {
             .transition(.opacity.combined(with: .move(edge: .top)))
         }
 
+        if model.showExpressiveDrawer {
+          expressiveDrawerCard
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+
         quickSkillsStrip
 
         thumbsticksDeck
@@ -118,6 +123,11 @@ public struct CockpitView: View {
 
         if model.showSoundDrawer {
           soundboardStrip
+            .padding(.horizontal, 24)
+        }
+
+        if model.showExpressiveDrawer {
+          expressiveDrawerCard
             .padding(.horizontal, 24)
         }
 
@@ -421,6 +431,20 @@ public struct CockpitView: View {
       .controlSize(.large)
       .disabled(!model.snapshot.controlOpen)
       .accessibilityLabel("Sounds")
+
+      Button {
+        withAnimation(.snappy(duration: 0.25)) {
+          model.expressiveDrawerToggleTapped()
+        }
+      } label: {
+        Image(systemName: model.showExpressiveDrawer || model.hasActiveExpression ? "face.smiling.inverse" : "face.smiling")
+      }
+      .buttonStyle(.bordered)
+      .buttonBorderShape(.circle)
+      .tint(model.showExpressiveDrawer || model.hasActiveExpression ? .accentColor : .primary)
+      .controlSize(.large)
+      .disabled(!model.snapshot.controlOpen)
+      .accessibilityLabel("Expressive Controls")
     }
   }
 
@@ -457,6 +481,14 @@ public struct CockpitView: View {
           Label(
             model.soccerEnabled ? "Stop Soccer Mode" : "Soccer Mode",
             systemImage: "soccerball"
+          )
+        }
+        Button {
+          Task { await model.thereminToggleTapped() }
+        } label: {
+          Label(
+            model.thereminEnabled ? "Stop Theremin" : "Theremin",
+            systemImage: "music.note"
           )
         }
       }
@@ -549,6 +581,95 @@ public struct CockpitView: View {
         }
       }
     }
+  }
+
+  private var expressiveDrawerCard: some View {
+    VStack(spacing: 10) {
+      HStack(spacing: 10) {
+        Label("Hold Chomp", systemImage: "mouth.fill")
+          .font(.footnote.weight(.medium))
+          .padding(.horizontal, 12)
+          .padding(.vertical, 6)
+          .background(
+            model.isHoldingChomp ? Color.accentColor.opacity(0.24) : Color.primary.opacity(0.08),
+            in: Capsule()
+          )
+          .foregroundStyle(model.isHoldingChomp ? Color.accentColor : .primary)
+          .gesture(
+            DragGesture(minimumDistance: 0)
+              .onChanged { _ in
+                Task { await model.chompHoldChanged(isPressed: true) }
+              }
+              .onEnded { _ in
+                Task { await model.chompHoldChanged(isPressed: false) }
+              }
+          )
+
+        Slider(
+          value: Binding(
+            get: { model.beakOpening },
+            set: { value in Task { await model.beakOpeningChanged(value) } }
+          ),
+          in: 0...1
+        )
+        .accessibilityLabel("Beak Opening")
+
+        Text("\(Int((model.beakOpening * 100).rounded()))%")
+          .font(.caption.monospacedDigit())
+          .foregroundStyle(.secondary)
+          .frame(width: 34, alignment: .trailing)
+
+        Button("Reset") {
+          Task { await model.resetExpressionTapped() }
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.mini)
+        .disabled(!model.hasActiveExpression)
+      }
+
+      HStack(spacing: 14) {
+        HStack(spacing: 6) {
+          Text("Tilt")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+          Slider(
+            value: Binding(
+              get: { model.headTilt },
+              set: { value in Task { await model.headTiltChanged(value) } }
+            ),
+            in: -1...1
+          )
+          .accessibilityLabel("Head Tilt")
+          Text("\(Int((model.headTilt * 100).rounded()))%")
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(width: 34, alignment: .trailing)
+        }
+
+        HStack(spacing: 6) {
+          Text("Crouch")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+          Slider(
+            value: Binding(
+              get: { model.crouchDepth },
+              set: { value in Task { await model.crouchDepthChanged(value) } }
+            ),
+            in: 0...1
+          )
+          .disabled(!model.isEnabled || model.isSitting)
+          .accessibilityLabel("Crouch Depth")
+          Text("\(Int((model.crouchDepth * 100).rounded()))%")
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(width: 34, alignment: .trailing)
+        }
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
   }
 
   private var thumbsticksDeck: some View {

@@ -316,6 +316,9 @@ public struct DuckSessionClient: Sendable {
   public var selectDuck: @Sendable (String) async -> Void
   public var sendMove: @Sendable (RobotMoveParams) async -> Void
   public var sendLook: @Sendable (RobotLookParams) async -> RobotLookResult?
+  public var sendMouth: @Sendable (RobotMouthParams) async -> Void
+  public var sendHead: @Sendable (RobotHeadParams) async -> Void
+  public var sendPose: @Sendable (RobotPoseParams) async -> Void
   public var setEnabled: @Sendable (Bool) async throws -> Void
   public var toggleEnable: @Sendable () async throws -> Void
   public var standBackUp: @Sendable () async throws -> Void
@@ -330,6 +333,7 @@ public struct DuckSessionClient: Sendable {
   public var setFlashlightColor: @Sendable (Bool, String) async throws -> Void
   public var setLaserTrack: @Sendable (Bool) async throws -> Void
   public var setSoccer: @Sendable (Bool) async throws -> Void
+  public var setTheremin: @Sendable (Bool) async throws -> Void
   public var subscribeTof: @Sendable () async -> Void
   public var refreshMap: @Sendable (Double) async -> Void
   public var wipeMap: @Sendable () async throws -> Void
@@ -353,6 +357,9 @@ public struct DuckSessionClient: Sendable {
     selectDuck: @escaping @Sendable (String) async -> Void,
     sendMove: @escaping @Sendable (RobotMoveParams) async -> Void,
     sendLook: @escaping @Sendable (RobotLookParams) async -> RobotLookResult?,
+    sendMouth: @escaping @Sendable (RobotMouthParams) async -> Void = { _ in },
+    sendHead: @escaping @Sendable (RobotHeadParams) async -> Void = { _ in },
+    sendPose: @escaping @Sendable (RobotPoseParams) async -> Void = { _ in },
     setEnabled: @escaping @Sendable (Bool) async throws -> Void = { _ in },
     toggleEnable: @escaping @Sendable () async throws -> Void,
     standBackUp: @escaping @Sendable () async throws -> Void = {},
@@ -367,6 +374,7 @@ public struct DuckSessionClient: Sendable {
     setFlashlightColor: @escaping @Sendable (Bool, String) async throws -> Void = { _, _ in },
     setLaserTrack: @escaping @Sendable (Bool) async throws -> Void,
     setSoccer: @escaping @Sendable (Bool) async throws -> Void,
+    setTheremin: @escaping @Sendable (Bool) async throws -> Void = { _ in },
     subscribeTof: @escaping @Sendable () async -> Void,
     refreshMap: @escaping @Sendable (Double) async -> Void,
     wipeMap: @escaping @Sendable () async throws -> Void,
@@ -400,6 +408,9 @@ public struct DuckSessionClient: Sendable {
     self.selectDuck = selectDuck
     self.sendMove = sendMove
     self.sendLook = sendLook
+    self.sendMouth = sendMouth
+    self.sendHead = sendHead
+    self.sendPose = sendPose
     self.setEnabled = setEnabled
     self.toggleEnable = toggleEnable
     self.standBackUp = standBackUp
@@ -414,6 +425,7 @@ public struct DuckSessionClient: Sendable {
     self.setFlashlightColor = setFlashlightColor
     self.setLaserTrack = setLaserTrack
     self.setSoccer = setSoccer
+    self.setTheremin = setTheremin
     self.subscribeTof = subscribeTof
     self.refreshMap = refreshMap
     self.wipeMap = wipeMap
