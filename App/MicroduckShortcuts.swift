@@ -71,5 +71,16 @@ struct MicroduckShortcuts: AppShortcutsProvider {
       shortTitle: "Move Duck",
       systemImageName: "arrow.up.and.down.and.arrow.left.and.right"
     )
+
+    AppShortcut(
+      intent: SnapDuckPhotoIntent(),
+      phrases: [
+        "Take a photo with \(.applicationName)",
+        "Snap a photo from \(.applicationName)",
+        "Show me what \(.applicationName) sees",
+      ],
+      shortTitle: "Snap Duck Photo",
+      systemImageName: "camera.fill"
+    )
   }
 }
