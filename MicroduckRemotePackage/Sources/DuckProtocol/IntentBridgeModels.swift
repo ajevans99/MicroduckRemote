@@ -9,7 +9,7 @@ public enum LastConnectionPreference: Codable, Equatable, Sendable {
 }
 
 @CasePathable
-public enum DuckSessionError: Equatable, Error, LocalizedError, Sendable {
+public enum DuckSessionError: Equatable, Error, LocalizedError, CustomLocalizedStringResourceConvertible, Sendable {
   case missingHuggingFaceAccount
   case connectionFailed(String)
   case connectionTimedOut
@@ -19,12 +19,12 @@ public enum DuckSessionError: Equatable, Error, LocalizedError, Sendable {
   case noActiveVideoStream
   case frameCaptureTimedOut
 
-  public var errorDescription: String? {
+  public var localizedStringResource: LocalizedStringResource {
     switch self {
     case .missingHuggingFaceAccount:
       "Sign in to Hugging Face in Microduck first so Siri can reach your duck."
     case let .connectionFailed(reason):
-      reason
+      LocalizedStringResource(stringLiteral: reason)
     case .connectionTimedOut:
       "Timed out waiting to connect to your Microduck."
     case .duckFallen:
@@ -32,12 +32,16 @@ public enum DuckSessionError: Equatable, Error, LocalizedError, Sendable {
     case .duckPickedUp:
       "Your duck's feet are off the ground. Set it down before walking."
     case .duckNotStanding:
-      "Your duck's motors are disabled or sitting. Ask it to stand up first."
+      "Your duck's motors are disabled or sitting. Stand it up first."
     case .noActiveVideoStream:
       "Your duck's head camera isn't streaming video right now."
     case .frameCaptureTimedOut:
       "Timed out waiting for a camera frame from your duck."
     }
+  }
+
+  public var errorDescription: String? {
+    String(localized: localizedStringResource)
   }
 }
 

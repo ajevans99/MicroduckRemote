@@ -1,0 +1,8 @@
+// Copy this file to Config/Local.xcconfig (gitignored) and fill in your Apple
+// Development Team ID and a unique reverse-DNS bundle identifier for device signing
+// and App Groups.
+//
+// Find your Team ID in Xcode > Settings > Accounts or Apple Developer Portal.
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+APP_BUNDLE_ID = com.yourname.microduckremote

@@ -630,14 +630,14 @@ extension HuggingFaceAuthClient: TestDependencyKey {
       loadSession: { nil },
       saveSession: { _ in },
       clearSession: {},
-      resolveUsername: { _ in "ajevans99" },
+      resolveUsername: { _ in "demo-user" },
       startDeviceLogin: {
         HuggingFaceDeviceCode(deviceCode: "dev-123", userCode: "DUCK-4242")
       },
       awaitDeviceLogin: { _ in
-        HuggingFaceSession(token: "hf_oauth_preview", username: "ajevans99")
+        HuggingFaceSession(token: "hf_oauth_preview", username: "demo-user")
       },
-      signInWithPKCE: { _ in HuggingFaceSession(token: "hf_preview", username: "ajevans99") }
+      signInWithPKCE: { _ in HuggingFaceSession(token: "hf_preview", username: "demo-user") }
     )
   }
 

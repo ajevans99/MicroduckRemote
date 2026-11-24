@@ -1,10 +1,18 @@
 name: MicroduckRemote
+fileTypes:
+  skillsbundle:
+    file: true
+    buildPhase: resources
+    explicitFileType: wrapper.skillsbundle
 options:
-  bundleIdPrefix: dev.ajevans
+  bundleIdPrefix: com.microduck
   deploymentTarget:
     iOS: "27.3"
     macOS: "27.3"
   xcodeVersion: "16.0"
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
 packages:
   MicroduckRemotePackage:
     path: MicroduckRemotePackage
@@ -16,10 +24,13 @@ targets:
       - path: App
         excludes:
           - Info-macOS.plist
+          - Skills.skillsbundle
+      - path: App/Skills.skillsbundle
+        type: file
+        buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.ajevans.microduckremote
-        DEVELOPMENT_TEAM: 3Z68NFJBHS
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
@@ -51,14 +62,14 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleURLTypes:
-          - CFBundleURLName: dev.ajevans.microduckremote.oauth
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER).oauth
             CFBundleURLSchemes:
               - microduckremote
     entitlements:
       path: MicroduckRemote.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.dev.ajevans.microduckremote
+          - group.$(PRODUCT_BUNDLE_IDENTIFIER)
     dependencies:
       - package: MicroduckRemotePackage
         product: AppFeature
@@ -77,11 +88,14 @@ targets:
       - path: App
         excludes:
           - Info.plist
+          - Skills.skillsbundle
+      - path: App/Skills.skillsbundle
+        type: file
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: Microduck
-        PRODUCT_BUNDLE_IDENTIFIER: dev.ajevans.microduckremote
-        DEVELOPMENT_TEAM: 3Z68NFJBHS
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
         INFOPLIST_KEY_CFBundleDisplayName: "Microduck"
@@ -99,7 +113,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
-          - CFBundleURLName: dev.ajevans.microduckremote.oauth
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER).oauth
             CFBundleURLSchemes:
               - microduckremote
     entitlements:
@@ -119,6 +133,21 @@ targets:
         product: RoomScanFeature
       - package: MicroduckRemotePackage
         product: SimulatorFeature
+  MicroduckSiriEvaluations:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "27.3"
+    sources:
+      - path: MicroduckSiriEvaluations
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).sirieval
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: MicroduckRemoteMac
+    dependencies:
+      - target: MicroduckRemoteMac
 schemes:
   MicroduckRemote:
     build:
@@ -130,5 +159,10 @@ schemes:
     build:
       targets:
         MicroduckRemoteMac: all
+        MicroduckSiriEvaluations: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - MicroduckSiriEvaluations

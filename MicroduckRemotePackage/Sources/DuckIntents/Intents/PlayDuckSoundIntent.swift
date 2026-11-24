@@ -47,7 +47,7 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
     self.holdSeconds = holdSeconds
   }
 
-  public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
     @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
@@ -93,6 +93,6 @@ public struct PlayDuckSoundIntent: LiveActivityIntent {
       return (message, message)
     }
 
-    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+    return .result(value: dialogText)
   }
 }

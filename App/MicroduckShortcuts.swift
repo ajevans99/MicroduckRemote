@@ -82,5 +82,26 @@ struct MicroduckShortcuts: AppShortcutsProvider {
       shortTitle: "Snap Duck Photo",
       systemImageName: "camera.fill"
     )
+
+    AppShortcut(
+      intent: SetDuckModeIntent(),
+      phrases: [
+        "Start \(\.$mode) on \(.applicationName)",
+        "Turn on \(\.$mode) on \(.applicationName)",
+        "Enable \(\.$mode) on \(.applicationName)",
+      ],
+      shortTitle: "Duck Mode",
+      systemImageName: "wand.and.stars"
+    )
+
+    AppShortcut(
+      intent: SetDuckLightIntent(),
+      phrases: [
+        "Set \(.applicationName) light to \(\.$color)",
+        "Turn \(.applicationName) light \(\.$color)",
+      ],
+      shortTitle: "Duck Light",
+      systemImageName: "lightbulb.fill"
+    )
   }
 }

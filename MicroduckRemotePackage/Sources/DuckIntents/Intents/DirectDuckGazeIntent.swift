@@ -43,7 +43,7 @@ public struct DirectDuckGazeIntent: LiveActivityIntent {
     self.verticalPercent = verticalPercent
   }
 
-  public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
     let dialogText = try await IntentTelemetryTracer.traceTool(
@@ -68,6 +68,6 @@ public struct DirectDuckGazeIntent: LiveActivityIntent {
       return (message, message)
     }
 
-    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+    return .result(value: dialogText)
   }
 }

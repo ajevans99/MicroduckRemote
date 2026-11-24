@@ -3,7 +3,6 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 import Foundation
-import SwiftUI
 
 @AppIntent(.tool)
 public struct SnapDuckPhotoIntent: LiveActivityIntent {
@@ -21,11 +20,11 @@ public struct SnapDuckPhotoIntent: LiveActivityIntent {
 
   public init() {}
 
-  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckPhotoEntity> & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckPhotoEntity> {
     @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
-    let (photo, dialogText) = try await IntentTelemetryTracer.traceTool(
+    let (photo, _) = try await IntentTelemetryTracer.traceTool(
       intentName: "SnapDuckPhotoIntent",
       displayTitle: "Snap Microduck Photo"
     ) { setContext in
@@ -44,14 +43,11 @@ public struct SnapDuckPhotoIntent: LiveActivityIntent {
 
       let frame = try await duckSession.capturePhoto()
       let entity = DuckPhotoEntity(duckName: connection.duckName, frame: frame)
+      DuckPhotoStore.shared.save(entity)
       let message = "Snapped a photo from \(connection.duckName)'s head camera (\(frame.width)×\(frame.height))."
       return ((entity, message), message)
     }
 
-    return .result(
-      value: photo,
-      dialog: IntentDialog(stringLiteral: dialogText),
-      view: DuckPhotoCardView(photo: photo, isCompact: false)
-    )
+    return .result(value: photo)
   }
 }

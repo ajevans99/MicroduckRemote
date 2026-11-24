@@ -6,12 +6,66 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// In-memory cache of recently snapped `DuckPhotoEntity` instances so Siri AI's
+/// `EntityQuery` / `SnippetRepresentableEntity` pipeline can resolve returned photos
+/// and render their `CardSnippet` archive.
+public final class DuckPhotoStore: @unchecked Sendable {
+  public static let shared = DuckPhotoStore()
+
+  private let lock = NSLock()
+  private var items: [String: DuckPhotoEntity] = [:]
+  private var order: [String] = []
+  private let capacity = 8
+
+  private init() {}
+
+  public func save(_ entity: DuckPhotoEntity) {
+    lock.lock()
+    defer { lock.unlock() }
+    items[entity.id] = entity
+    order.removeAll { $0 == entity.id }
+    order.insert(entity.id, at: 0)
+    if order.count > capacity {
+      let dropped = order.removeLast()
+      items.removeValue(forKey: dropped)
+    }
+  }
+
+  public func entities(for ids: [String]) -> [DuckPhotoEntity] {
+    lock.lock()
+    defer { lock.unlock() }
+    return ids.compactMap { items[$0] }
+  }
+
+  public var recent: [DuckPhotoEntity] {
+    lock.lock()
+    defer { lock.unlock() }
+    return order.compactMap { items[$0] }
+  }
+}
+
+public struct DuckPhotoQuery: EntityQuery {
+  public init() {}
+
+  public func entities(for identifiers: [String]) async throws -> [DuckPhotoEntity] {
+    DuckPhotoStore.shared.entities(for: identifiers)
+  }
+
+  public func suggestedEntities() async throws -> [DuckPhotoEntity] {
+    DuckPhotoStore.shared.recent
+  }
+}
+
 /// A first-person JPEG snapshot captured from Microduck's head camera.
-/// Conforms to `Transferable` so Siri AI and Shortcuts can hand the photo directly to
-/// Messages, Mail, Photos, Notes, or Apple Intelligence vision actions, and to
-/// `SnippetRepresentableEntity` so Siri displays the frame inline via `CardSnippet`.
-public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresentableEntity, Equatable, Sendable {
+/// Conforms to `AppEntity` + `SnippetRepresentableEntity` so Siri AI renders the captured
+/// frame inline via `CardSnippet`, and to `Transferable` so Siri and Shortcuts can hand
+/// the JPEG directly to Messages, Mail, Photos, Notes, or Apple Intelligence vision actions.
+public struct DuckPhotoEntity: AppEntity, Transferable, SnippetRepresentableEntity, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Microduck Photo")
+  public static let defaultQuery = DuckPhotoQuery()
+  public static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
+
+  public let id: String
 
   @Property(
     title: "Duck Name",
@@ -66,7 +120,8 @@ public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresen
     }
   }
 
-  public init() {
+  public init(id: String = "photo-\(UUID().uuidString)") {
+    self.id = id
     self.duckName = "Microduck"
     self.capturedAt = Date(timeIntervalSince1970: 0)
     self.width = 0
@@ -77,6 +132,7 @@ public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresen
 
   public init(duckName: String, frame: DuckCapturedFrame) {
     let timestampSlug = Int(frame.capturedAt.timeIntervalSince1970)
+    self.id = "photo-\(duckName)-\(timestampSlug)-\(UUID().uuidString.prefix(6))"
     self.duckName = duckName
     self.capturedAt = frame.capturedAt
     self.width = frame.width
@@ -90,7 +146,8 @@ public struct DuckPhotoEntity: TransientAppEntity, Transferable, SnippetRepresen
   }
 
   public static func == (lhs: DuckPhotoEntity, rhs: DuckPhotoEntity) -> Bool {
-    lhs.duckName == rhs.duckName
+    lhs.id == rhs.id
+      && lhs.duckName == rhs.duckName
       && lhs.capturedAt == rhs.capturedAt
       && lhs.width == rhs.width
       && lhs.height == rhs.height

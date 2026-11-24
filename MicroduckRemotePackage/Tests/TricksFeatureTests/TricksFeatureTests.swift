@@ -54,7 +54,7 @@ import TricksFeature
     await withDependencies {
       var auth = HuggingFaceAuthClient.previewValue
       auth.loadSession = {
-        HuggingFaceSession(token: "hf_oauth_test", username: "ajevans99")
+        HuggingFaceSession(token: "hf_oauth_test", username: "demo-user")
       }
       $0.huggingFaceAuth = auth
       $0.hubCatalog = .previewValue
@@ -62,12 +62,12 @@ import TricksFeature
       $0.haptics = .previewValue
     } operation: {
       let model = TricksModel()
-      model.huggingFaceSession = HuggingFaceSession(token: "hf_oauth_test", username: "ajevans99")
+      model.huggingFaceSession = HuggingFaceSession(token: "hf_oauth_test", username: "demo-user")
       await model.refreshCatalogButtonTapped()
 
       expectNoDifference(model.myTricks.map(\.name), ["Custom Wave"])
       model.filterScope = .mine
-      expectNoDifference(model.filteredTricks.map(\.repo), ["ajevans99/microduck-custom-wave"])
+      expectNoDifference(model.filteredTricks.map(\.repo), ["demo-user/microduck-custom-wave"])
     }
   }
 }

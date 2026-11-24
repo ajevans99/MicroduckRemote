@@ -200,7 +200,6 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
   public static func defaultMicroduckRepoPath(home: String = NSHomeDirectory()) -> String {
     let candidates = [
       "\(home)/Documents/microduck",
-      "\(home)/.copilot/repos/microduck",
       "\(home)/Pollen/microduck",
       "\(home)/Code/microduck",
       "\(home)/Developer/microduck",
@@ -215,7 +214,8 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
     let candidates = [
       "\(home)/Pollen/microduck_rl",
       "\(home)/Documents/microduck_rl",
-      "\(home)/.copilot/repos/microduck_rl",
+      "\(home)/Code/microduck_rl",
+      "\(home)/Developer/microduck_rl",
     ]
     for path in candidates where FileManager.default.fileExists(atPath: path) {
       return path

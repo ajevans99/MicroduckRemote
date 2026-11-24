@@ -108,12 +108,17 @@ import Testing
 
     // 3. Sitting + standUp -> performSkill("sit_toggle")
     try await withDependencies {
-      var snap = DuckSessionSnapshot.previewConnected
-      snap.policies?.sitting = true
-      let frozen = snap
+      let state = LockIsolated<DuckSessionSnapshot>({
+        var snap = DuckSessionSnapshot.previewConnected
+        snap.policies?.sitting = true
+        return snap
+      }())
       var session = DuckSessionClient.previewValue
-      session.currentSnapshot = { frozen }
-      session.performSkill = { name in actions.withValue { $0.append("skill:\(name)") } }
+      session.currentSnapshot = { state.value }
+      session.performSkill = { name in
+        actions.withValue { $0.append("skill:\(name)") }
+        state.withValue { $0.policies?.sitting = false }
+      }
       $0.duckSession = session
       $0.continuousClock = ImmediateClock()
     } operation: {
@@ -126,6 +131,7 @@ import Testing
       session.setEnabled = { on in actions.withValue { $0.append("setEnabled:\(on)") } }
       session.performSkill = { name in actions.withValue { $0.append("skill:\(name)") } }
       $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
     } operation: {
       _ = try await SetDuckPostureIntent(posture: .standUp).perform()
     }
@@ -135,6 +141,7 @@ import Testing
       var session = DuckSessionClient.previewValue
       session.performSkill = { name in actions.withValue { $0.append("skill:\(name)") } }
       $0.duckSession = session
+      $0.continuousClock = ImmediateClock()
     } operation: {
       _ = try await SetDuckPostureIntent(posture: .sitDown).perform()
     }

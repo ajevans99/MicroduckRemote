@@ -28,8 +28,22 @@ public enum DuckConstants {
   public static let intentHz = 10
   public static let defaultHoldSeconds = 3.0
   public static let jointDeviationFullScaleRadians = 0.20
-  public static let appGroupID = "group.dev.ajevans.microduckremote"
-  public static let iCloudContainerID = "iCloud.dev.ajevans.microduckremote"
+  public static let defaultBundleIdentifier = "com.microduck.remote"
+
+  public static var appBundleIdentifier: String {
+    if let bundleID = Bundle.main.bundleIdentifier, !bundleID.hasPrefix("com.apple.") {
+      return bundleID
+    }
+    return defaultBundleIdentifier
+  }
+
+  public static var appGroupID: String {
+    "group.\(appBundleIdentifier)"
+  }
+
+  public static var iCloudContainerID: String {
+    "iCloud.\(appBundleIdentifier)"
+  }
   public static let iCloudDriveScenesFolderName = "Microduck Scenes"
   public static let syncedScenesSubdirectory = "Documents/Scenes"
   public static let headlessIdleTimeoutSeconds = 30.0

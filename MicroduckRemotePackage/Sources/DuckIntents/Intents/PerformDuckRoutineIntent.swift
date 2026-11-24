@@ -3,7 +3,6 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 import Foundation
-import SwiftUI
 
 @AppIntent(.tool)
 public struct PerformDuckRoutineIntent: LiveActivityIntent {
@@ -31,7 +30,7 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
     self.routine = routine
   }
 
-  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckRoutine> & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckRoutine> {
     @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
@@ -46,7 +45,7 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
       params.append(.init(key: "step \(idx + 1)", value: label))
     }
 
-    let (executedRoutine, dialogText) = try await IntentTelemetryTracer.traceTool(
+    let (executedRoutine, _) = try await IntentTelemetryTracer.traceTool(
       intentName: "PerformDuckRoutineIntent",
       displayTitle: "Perform Duck Routine",
       parameters: params
@@ -173,10 +172,6 @@ public struct PerformDuckRoutineIntent: LiveActivityIntent {
       return ((executed, message), message)
     }
 
-    return .result(
-      value: executedRoutine,
-      dialog: IntentDialog(stringLiteral: dialogText),
-      view: DuckRoutineCardView(routine: executedRoutine, isCompact: false)
-    )
+    return .result(value: executedRoutine)
   }
 }

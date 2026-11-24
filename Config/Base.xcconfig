@@ -1,0 +1,8 @@
+// Shared build settings for MicroduckRemote.
+// Contributors: copy Config/Local.xcconfig.example to Config/Local.xcconfig to set
+// your own Apple Development Team and unique bundle identifier (gitignored).
+
+APP_BUNDLE_ID = com.microduck.remote
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

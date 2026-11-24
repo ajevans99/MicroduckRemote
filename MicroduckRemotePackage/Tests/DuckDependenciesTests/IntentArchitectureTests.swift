@@ -8,7 +8,7 @@ import Testing
 
 @Suite struct IntentArchitectureTests {
   @Test func coldStartTargetResolvesSavedPreferencesAndSimulatorFallback() throws {
-    let hfSession = HuggingFaceSession(token: "hf_secret", username: "ajevans99")
+    let hfSession = HuggingFaceSession(token: "hf_test_token", username: "demo-user")
 
     let remoteTarget = try ConnectionPreferencesClient.resolveColdStartTarget(
       preference: .rendezvous(
@@ -22,8 +22,8 @@ import Testing
       remoteTarget,
       .rendezvous(
         serverURL: DuckConstants.defaultRendezvousURL,
-        token: "hf_secret",
-        username: "ajevans99",
+        token: "hf_test_token",
+        username: "demo-user",
         preferredPeerID: "duck-hw-01"
       )
     )

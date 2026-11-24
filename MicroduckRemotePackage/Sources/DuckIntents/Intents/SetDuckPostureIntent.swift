@@ -30,11 +30,11 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
     self.posture = posture
   }
 
-  public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckStatusEntity> {
     @Dependencies.Dependency(\.duckSession) var duckSession
     @Dependencies.Dependency(\.continuousClock) var clock
 
-    let dialogText = try await IntentTelemetryTracer.traceTool(
+    let status = try await IntentTelemetryTracer.traceTool(
       intentName: "SetDuckPostureIntent",
       displayTitle: "Set Microduck Posture",
       parameters: [.init(key: "posture", value: posture.rawValue)]
@@ -63,7 +63,11 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
           message = "\(connection.duckName) is standing up."
         } else if isSitting {
           try await duckSession.performSkill("sit_toggle")
-          await Self.waitUntilStanding(duckSession: duckSession, clock: clock)
+          await Self.waitUntilStanding(
+            duckSession: duckSession,
+            clock: clock,
+            retrySitToggleIfStillSitting: true
+          )
           message = "\(connection.duckName) is standing up from its seat."
         } else {
           message = "\(connection.duckName) is already standing up."
@@ -77,6 +81,9 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
           message = "\(connection.duckName) is already sitting down."
         } else {
           try await duckSession.performSkill("sit_toggle")
+          // `robotd` enforces a 2.0 s `sitstand_ramp_s` settle timer before `sit_toggle`
+          // can be reversed, so wait for the seat to settle before returning to a chained tool.
+          try? await clock.sleep(for: .milliseconds(2200))
           await duckSession.refreshSkills()
           message = "\(connection.duckName) is sitting down."
         }
@@ -91,10 +98,12 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
         message = "Reset \(connection.duckName) to its home pose."
       }
 
-      return (message, message)
+      let updatedStatus = DuckStatusEntity(snapshot: await duckSession.currentSnapshot())
+      DuckStatusStore.shared.save(updatedStatus)
+      return (updatedStatus, message)
     }
 
-    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+    return .result(value: status)
   }
 
   /// Polls `robot.policies` until Microduck finishes its rise/enable transition so a
@@ -102,9 +111,11 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
   private static func waitUntilStanding(
     duckSession: DuckSessionClient,
     clock: any Clock<Duration>,
-    maxAttempts: Int = 15,
+    retrySitToggleIfStillSitting: Bool = false,
+    maxAttempts: Int = 18,
     pollInterval: Duration = .milliseconds(200)
   ) async {
+    var didRetryToggle = false
     for attempt in 0..<maxAttempts {
       if Task.isCancelled { return }
       await duckSession.refreshSkills()
@@ -117,6 +128,10 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
         && activePolicy != "sit"
       if isReadyToWalk {
         return
+      }
+      if retrySitToggleIfStillSitting, !didRetryToggle, attempt == 4, policies?.sitting == true {
+        didRetryToggle = true
+        try? await duckSession.performSkill("sit_toggle")
       }
       if attempt + 1 < maxAttempts {
         try? await clock.sleep(for: pollInterval)

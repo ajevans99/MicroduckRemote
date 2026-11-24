@@ -2,7 +2,6 @@ import AppIntents
 import Dependencies
 import DuckDependencies
 import DuckProtocol
-import SwiftUI
 
 @AppIntent(.tool)
 public struct GetDuckStatusIntent: LiveActivityIntent {
@@ -20,7 +19,7 @@ public struct GetDuckStatusIntent: LiveActivityIntent {
 
   public init() {}
 
-  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckStatusEntity> & ProvidesDialog & ShowsSnippetView {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<DuckStatusEntity> {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
     let status = try await IntentTelemetryTracer.traceTool(
@@ -35,13 +34,10 @@ public struct GetDuckStatusIntent: LiveActivityIntent {
 
       let snapshot = await duckSession.currentSnapshot()
       let entity = DuckStatusEntity(snapshot: snapshot)
+      DuckStatusStore.shared.save(entity)
       return (entity, entity.spokenSummary)
     }
 
-    return .result(
-      value: status,
-      dialog: IntentDialog(stringLiteral: status.spokenSummary),
-      view: DuckStatusCardView(status: status, isCompact: false)
-    )
+    return .result(value: status)
   }
 }

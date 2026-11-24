@@ -66,7 +66,7 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
     self.stopOnObstacle = stopOnObstacle
   }
 
-  public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
     let request = direction.makeRequest(
@@ -108,6 +108,6 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
       return (message, message)
     }
 
-    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+    return .result(value: dialogText)
   }
 }

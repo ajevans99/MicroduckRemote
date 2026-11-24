@@ -19,7 +19,7 @@ public struct EmergencyStopDuckIntent: LiveActivityIntent {
 
   public init() {}
 
-  public func perform() async throws -> some AppIntents.IntentResult & ProvidesDialog {
+  public func perform() async throws -> some AppIntents.IntentResult & ReturnsValue<String> {
     @Dependencies.Dependency(\.duckSession) var duckSession
 
     let dialogText = try await IntentTelemetryTracer.traceTool(
@@ -36,6 +36,6 @@ public struct EmergencyStopDuckIntent: LiveActivityIntent {
       return (message, message)
     }
 
-    return .result(dialog: IntentDialog(stringLiteral: dialogText))
+    return .result(value: dialogText)
   }
 }

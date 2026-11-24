@@ -1,17 +1,10 @@
 import AppFeature
-import AppIntents
 import Dependencies
 import DuckDependencies
 import DuckIntents
 import DuckWebRTC
 import RoomScanFeature
 import SwiftUI
-
-struct MicroduckAppIntentsRegistration: AppIntentsPackage {
-  static var includedPackages: [any AppIntentsPackage.Type] {
-    [MicroduckIntentsPackage.self]
-  }
-}
 
 @main
 struct MicroduckRemoteApp: App {

@@ -1,13 +1,14 @@
 import Dependencies
+import DuckProtocol
 import Foundation
 
 public enum ICloudSceneSyncConstants {
   public static let recommendedFolderName = "Microduck Scenes"
-  public static let containerIdentifier = "iCloud.dev.ajevans.microduckremote"
+  public static var containerIdentifier: String { DuckConstants.iCloudContainerID }
   public static let documentsDirectoryName = "Documents"
   public static let scenesDirectoryName = "Scenes"
   public static let localFallbackDirectoryName = "MicroduckSyncedScenes"
-  public static let folderBookmarkDefaultsKey = "dev.ajevans.microduckremote.syncedScenesFolderBookmark"
+  public static let folderBookmarkDefaultsKey = "microduck.syncedScenesFolderBookmark"
 }
 
 public struct SyncedSceneMetadata: Codable, Sendable, Equatable, Hashable {
