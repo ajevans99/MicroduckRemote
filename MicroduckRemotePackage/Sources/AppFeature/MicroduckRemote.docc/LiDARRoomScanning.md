@@ -20,7 +20,7 @@ Before saving `scene_<slug>.xml`, customize the scene for Microduck's walking po
   - **Open Doorways** — Carves open detected doorways and archways with overhead lintels.
   - **Open All Doors** — Forces closed doors open for seamless multi-room traversal.
   - **Solid Doors** — Exports closed doors as solid collision boxes.
-- **Scene Tuning:** Toggle furniture collisions, floor visual overlays, dominant-wall axis alignment, and automatic `(0, 0)` indoor spawn clearance.
+- **Scene Tuning:** Toggle furniture collisions, floor visual overlays, **Add Playground Props** (automatically spawns a kickable orange soccer ball plus lightweight colorful cones and toy blocks on open collision-free floor spots clear of walls, furniture, doorways, and the `(0, 0)` spawn zone), dominant-wall axis alignment, and automatic `(0, 0)` indoor spawn clearance.
 
 ## Syncing to macOS via iCloud Drive
 

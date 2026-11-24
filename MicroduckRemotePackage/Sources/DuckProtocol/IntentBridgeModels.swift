@@ -191,6 +191,41 @@ public struct DuckSharedSummary: Codable, Equatable, Sendable {
   }
 }
 
+public enum TofRecommendedDirection: String, Codable, Equatable, Hashable, Sendable {
+  case forward
+  case turnLeft
+  case turnRight
+  case clear
+}
+
+public struct TofZoneAnalysis: Codable, Equatable, Hashable, Sendable {
+  public var frontMm: Int?
+  public var leftMm: Int?
+  public var rightMm: Int?
+  public var closestMm: Int?
+  public var lowFrontObjectMm: Int?
+  public var obstacleWarning: Bool
+  public var recommendedDirection: TofRecommendedDirection
+
+  public init(
+    frontMm: Int?,
+    leftMm: Int?,
+    rightMm: Int?,
+    closestMm: Int?,
+    lowFrontObjectMm: Int? = nil,
+    obstacleWarning: Bool,
+    recommendedDirection: TofRecommendedDirection
+  ) {
+    self.frontMm = frontMm
+    self.leftMm = leftMm
+    self.rightMm = rightMm
+    self.closestMm = closestMm
+    self.lowFrontObjectMm = lowFrontObjectMm
+    self.obstacleWarning = obstacleWarning
+    self.recommendedDirection = recommendedDirection
+  }
+}
+
 extension TofFrame {
   /// Minimum valid distance (mm) in the central forward-facing 50% cone of the ToF matrix,
   /// ignoring bottom/edge cells that see the floor and invalid `<= 0` readings.
@@ -201,17 +236,108 @@ extension TofFrame {
     let colStart = cols / 4
     let colEnd = max(colStart + 1, cols - (cols / 4))
 
+    return minimumValidDistanceMm(rows: rowStart..<rowEnd, cols: colStart..<colEnd, treatNoTargetAsMaxRange: false)
+  }
+
+  /// Splits the 8×8 ToF frame into Left (cols `0..<colStart`), Front (cols `colStart..<colEnd`),
+  /// and Right (cols `colEnd..<cols`) across the middle obstacle-height band (`rows 2..<6` on 8×8),
+  /// matching Microduck's VL53L5CX orientation where row 0 is top and column 0 is sensor-left.
+  public func analyzeZones(
+    warningThresholdMm: Int = DuckConstants.defaultProximityWarningMm,
+    clearThresholdMm: Int = DuckConstants.defaultProximityClearMm
+  ) -> TofZoneAnalysis? {
+    guard rows >= 2, cols >= 3, distanceMm.count >= rows * cols else { return nil }
+
+    let rowStart = rows / 4
+    let rowEnd = max(rowStart + 1, rows - (rows / 4))
+    let colStart = max(1, cols / 4)
+    let colEnd = min(cols - 1, max(colStart + 1, cols - (cols / 4)))
+
+    let leftMm = minimumValidDistanceMm(rows: rowStart..<rowEnd, cols: 0..<colStart, treatNoTargetAsMaxRange: true)
+    let frontMm = minimumValidDistanceMm(rows: rowStart..<rowEnd, cols: colStart..<colEnd, treatNoTargetAsMaxRange: true)
+    let rightMm = minimumValidDistanceMm(rows: rowStart..<rowEnd, cols: colEnd..<cols, treatNoTargetAsMaxRange: true)
+
+    guard leftMm != nil || frontMm != nil || rightMm != nil else { return nil }
+
+    let measuredZones = [leftMm, frontMm, rightMm].compactMap { $0 }
+    let closestMm = measuredZones.min()
+
+    // Detect a close low object (such as a soccer ball or floor cone) when lower-front rows
+    // see something much closer than the upper-front band above it.
+    let lowFrontObjectMm: Int?
+    if rows >= 6 {
+      let lowBandStart = max(rowEnd - 1, rows - 3)
+      let lowBandEnd = min(rows - 1, lowBandStart + 2)
+      let upperBandEnd = max(rowStart + 1, lowBandStart)
+      let lowMin = minimumValidDistanceMm(rows: lowBandStart..<lowBandEnd, cols: colStart..<colEnd, treatNoTargetAsMaxRange: false)
+      let upperMin = minimumValidDistanceMm(rows: rowStart..<upperBandEnd, cols: colStart..<colEnd, treatNoTargetAsMaxRange: true)
+      if let lowMin, lowMin < 360, (upperMin ?? DuckConstants.tofMaxRangeMm) > lowMin + 180 {
+        lowFrontObjectMm = lowMin
+      } else {
+        lowFrontObjectMm = nil
+      }
+    } else {
+      lowFrontObjectMm = nil
+    }
+
+    let frontClearance = frontMm ?? DuckConstants.tofMaxRangeMm
+    let leftClearance = leftMm ?? DuckConstants.tofMaxRangeMm
+    let rightClearance = rightMm ?? DuckConstants.tofMaxRangeMm
+
+    let sideCloseThreshold = min(warningThresholdMm, DuckConstants.defaultMinObstacleDistanceMm)
+    let obstacleWarning =
+      frontClearance < warningThresholdMm
+      || leftClearance < sideCloseThreshold
+      || rightClearance < sideCloseThreshold
+
+    let recommendedDirection: TofRecommendedDirection
+    if frontClearance >= clearThresholdMm
+      && leftClearance >= warningThresholdMm
+      && rightClearance >= warningThresholdMm
+    {
+      recommendedDirection = .clear
+    } else if frontClearance >= warningThresholdMm {
+      recommendedDirection = .forward
+    } else if leftClearance >= rightClearance {
+      recommendedDirection = .turnLeft
+    } else {
+      recommendedDirection = .turnRight
+    }
+
+    return TofZoneAnalysis(
+      frontMm: frontMm,
+      leftMm: leftMm,
+      rightMm: rightMm,
+      closestMm: closestMm,
+      lowFrontObjectMm: lowFrontObjectMm,
+      obstacleWarning: obstacleWarning,
+      recommendedDirection: recommendedDirection
+    )
+  }
+
+  private func minimumValidDistanceMm(
+    rows rowRange: Range<Int>,
+    cols colRange: Range<Int>,
+    treatNoTargetAsMaxRange: Bool
+  ) -> Int? {
     var minMm: Int?
-    for row in rowStart..<rowEnd {
-      for col in colStart..<colEnd {
+    var sawNoTarget = false
+
+    for row in rowRange {
+      for col in colRange {
         let idx = row * cols + col
         let mm = distanceMm[idx]
-        guard mm > 0 else { continue }
-        if let statuses = status, idx < statuses.count, statuses[idx] != 0 {
-          // VL53L5CX status 0 / 5 / 9 are valid; treat negative or 255 as invalid
+        if let statuses = status, idx < statuses.count {
           let st = statuses[idx]
-          if st < 0 || st == 255 { continue }
+          if st == 255 {
+            if treatNoTargetAsMaxRange {
+              sawNoTarget = true
+            }
+            continue
+          }
+          if st < 0 { continue }
         }
+        guard mm > 0 else { continue }
         if let current = minMm {
           if mm < current { minMm = mm }
         } else {
@@ -219,6 +345,10 @@ extension TofFrame {
         }
       }
     }
-    return minMm
+
+    if let minMm {
+      return minMm
+    }
+    return sawNoTarget ? DuckConstants.tofMaxRangeMm : nil
   }
 }

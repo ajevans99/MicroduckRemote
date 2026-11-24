@@ -54,6 +54,7 @@ public struct MJCFExportConfiguration: Codable, Sendable, Equatable {
   public var doorPolicy: DoorExportPolicy
   public var includeFurniture: Bool
   public var includeFloorOverlays: Bool
+  public var includePlaygroundProps: Bool
   public var alignDominantWallAxis: Bool
   public var autoClearSpawnOrigin: Bool
   public var minimumWallThickness: Double
@@ -64,6 +65,7 @@ public struct MJCFExportConfiguration: Codable, Sendable, Equatable {
     doorPolicy: DoorExportPolicy = .openDoorwaysOnly,
     includeFurniture: Bool = true,
     includeFloorOverlays: Bool = true,
+    includePlaygroundProps: Bool = false,
     alignDominantWallAxis: Bool = true,
     autoClearSpawnOrigin: Bool = true,
     minimumWallThickness: Double = 0.10,
@@ -73,6 +75,7 @@ public struct MJCFExportConfiguration: Codable, Sendable, Equatable {
     self.doorPolicy = doorPolicy
     self.includeFurniture = includeFurniture
     self.includeFloorOverlays = includeFloorOverlays
+    self.includePlaygroundProps = includePlaygroundProps
     self.alignDominantWallAxis = alignDominantWallAxis
     self.autoClearSpawnOrigin = autoClearSpawnOrigin
     self.minimumWallThickness = minimumWallThickness
@@ -177,6 +180,65 @@ public struct MJCFGeneratedGeom: Identifiable, Sendable, Equatable, Hashable {
   }
 }
 
+public enum MJCFPropKind: String, Codable, Sendable, Equatable, Hashable {
+  case soccerBall
+  case targetCone
+  case toyBlock
+}
+
+public enum MJCFPropShape: Sendable, Equatable, Hashable {
+  case sphere(radius: Double)
+  case cylinder(radius: Double, halfHeight: Double)
+  case box(halfExtents: SIMD3<Double>)
+
+  public var footprintRadius: Double {
+    switch self {
+    case let .sphere(radius):
+      radius
+    case let .cylinder(radius, _):
+      radius
+    case let .box(halfExtents):
+      hypot(halfExtents.x, halfExtents.y)
+    }
+  }
+}
+
+public struct MJCFInteractiveProp: Identifiable, Sendable, Equatable, Hashable {
+  public var id: String { name }
+  public var name: String
+  public var kind: MJCFPropKind
+  public var shape: MJCFPropShape
+  public var position: SIMD3<Double>
+  public var mass: Double
+  public var diagInertia: SIMD3<Double>
+  public var materialName: String
+  public var friction: String
+
+  public init(
+    name: String,
+    kind: MJCFPropKind,
+    shape: MJCFPropShape,
+    position: SIMD3<Double>,
+    mass: Double,
+    diagInertia: SIMD3<Double>,
+    materialName: String,
+    friction: String = "0.5 0.005 0.0001"
+  ) {
+    self.name = name
+    self.kind = kind
+    self.shape = shape
+    self.position = position
+    self.mass = mass
+    self.diagInertia = diagInertia
+    self.materialName = materialName
+    self.friction = friction
+  }
+
+  public var footprintRadius: Double {
+    shape.footprintRadius
+  }
+}
+
 public struct FloorPlanDoorwayGap: Identifiable, Sendable, Equatable, Hashable {
   public var id: String
   public var center: SIMD2<Double>
@@ -205,6 +267,7 @@ public struct FloorPlanPreview: Sendable, Equatable {
   public var floorPolygons: [[SIMD2<Double>]]
   public var geoms: [MJCFGeneratedGeom]
   public var openDoorways: [FloorPlanDoorwayGap]
+  public var interactiveProps: [MJCFInteractiveProp]
   public var spawnPoint: SIMD2<Double>
   public var spawnClearanceMeters: Double
 
@@ -214,6 +277,7 @@ public struct FloorPlanPreview: Sendable, Equatable {
     floorPolygons: [[SIMD2<Double>]],
     geoms: [MJCFGeneratedGeom],
     openDoorways: [FloorPlanDoorwayGap],
+    interactiveProps: [MJCFInteractiveProp] = [],
     spawnPoint: SIMD2<Double>,
     spawnClearanceMeters: Double
   ) {
@@ -222,6 +286,7 @@ public struct FloorPlanPreview: Sendable, Equatable {
     self.floorPolygons = floorPolygons
     self.geoms = geoms
     self.openDoorways = openDoorways
+    self.interactiveProps = interactiveProps
     self.spawnPoint = spawnPoint
     self.spawnClearanceMeters = spawnClearanceMeters
   }
@@ -233,6 +298,7 @@ public struct MJCFExportSummary: Sendable, Equatable {
   public var openDoorwayCount: Int
   public var closedDoorCount: Int
   public var furnitureCount: Int
+  public var interactivePropCount: Int
   public var footprintWidthMeters: Double
   public var footprintDepthMeters: Double
   public var floorElevationOffsetMeters: Double
@@ -245,6 +311,7 @@ public struct MJCFExportSummary: Sendable, Equatable {
     openDoorwayCount: Int,
     closedDoorCount: Int,
     furnitureCount: Int,
+    interactivePropCount: Int = 0,
     footprintWidthMeters: Double,
     footprintDepthMeters: Double,
     floorElevationOffsetMeters: Double,
@@ -256,6 +323,7 @@ public struct MJCFExportSummary: Sendable, Equatable {
     self.openDoorwayCount = openDoorwayCount
     self.closedDoorCount = closedDoorCount
     self.furnitureCount = furnitureCount
+    self.interactivePropCount = interactivePropCount
     self.footprintWidthMeters = footprintWidthMeters
     self.footprintDepthMeters = footprintDepthMeters
     self.floorElevationOffsetMeters = floorElevationOffsetMeters
@@ -267,6 +335,7 @@ public struct MJCFExportSummary: Sendable, Equatable {
 public struct MJCFExportResult: Sendable, Equatable {
   public var configuration: MJCFExportConfiguration
   public var geoms: [MJCFGeneratedGeom]
+  public var interactiveProps: [MJCFInteractiveProp]
   public var preview: FloorPlanPreview
   public var summary: MJCFExportSummary
   public var xml: String
@@ -274,12 +343,14 @@ public struct MJCFExportResult: Sendable, Equatable {
   public init(
     configuration: MJCFExportConfiguration,
     geoms: [MJCFGeneratedGeom],
+    interactiveProps: [MJCFInteractiveProp] = [],
     preview: FloorPlanPreview,
     summary: MJCFExportSummary,
     xml: String
   ) {
     self.configuration = configuration
     self.geoms = geoms
+    self.interactiveProps = interactiveProps
     self.preview = preview
     self.summary = summary
     self.xml = xml
@@ -602,12 +673,29 @@ public enum MJCFSceneExporter {
     }
 
     let bounds = computeSceneBounds(geoms: generatedGeoms, floorPolygons: shiftedPolygons)
+
+    var interactiveProps: [MJCFInteractiveProp] = []
+    if configuration.includePlaygroundProps {
+      interactiveProps = placeInteractiveProps(
+        bounds: bounds,
+        floorPolygons: shiftedPolygons,
+        geoms: generatedGeoms,
+        openDoorways: openDoorwayGaps
+      )
+      if interactiveProps.isEmpty {
+        warnings.append(
+          "No open floor space met clearance margins for playground props; exported scene without props."
+        )
+      }
+    }
+
     let preview = FloorPlanPreview(
       boundsMin: bounds.min,
       boundsMax: bounds.max,
       floorPolygons: shiftedPolygons,
       geoms: generatedGeoms,
       openDoorways: openDoorwayGaps,
+      interactiveProps: interactiveProps,
       spawnPoint: .zero,
       spawnClearanceMeters: max(spawnSolution.clearance, 0)
     )
@@ -618,6 +706,7 @@ public enum MJCFSceneExporter {
       openDoorwayCount: openDoorwayGaps.count,
       closedDoorCount: closedDoorCounter,
       furnitureCount: furnitureCounter,
+      interactivePropCount: interactiveProps.count,
       footprintWidthMeters: max(bounds.max.x - bounds.min.x, 0),
       footprintDepthMeters: max(bounds.max.y - bounds.min.y, 0),
       floorElevationOffsetMeters: floorZ,
@@ -628,12 +717,14 @@ public enum MJCFSceneExporter {
     let xml = renderMJCFXML(
       configuration: configuration,
       geoms: generatedGeoms,
+      interactiveProps: interactiveProps,
       summary: summary
     )
 
     return MJCFExportResult(
       configuration: configuration,
       geoms: generatedGeoms,
+      interactiveProps: interactiveProps,
       preview: preview,
       summary: summary,
       xml: xml
@@ -1558,6 +1649,243 @@ extension MJCFSceneExporter {
     return (minPt, maxPt)
   }
 
+  private static func doorwayClearanceDistance(
+    from point: SIMD2<Double>,
+    to doorway: FloorPlanDoorwayGap
+  ) -> Double {
+    let delta = point - doorway.center
+    let halfWidth = doorway.width * 0.5
+    let projected = min(max(simd_dot(delta, doorway.tangent), -halfWidth), halfWidth)
+    let closestOnSegment = doorway.center + doorway.tangent * projected
+    return simd_distance(point, closestOnSegment)
+  }
+
+  private static func placeInteractiveProps(
+    bounds: (min: SIMD2<Double>, max: SIMD2<Double>),
+    floorPolygons: [[SIMD2<Double>]],
+    geoms: [MJCFGeneratedGeom],
+    openDoorways: [FloorPlanDoorwayGap]
+  ) -> [MJCFInteractiveProp] {
+    let lowObstacles = geoms.filter { $0.hasCollision && $0.bottomZ < 0.45 }
+    let step = 0.20
+
+    struct CandidateSpot {
+      var point: SIMD2<Double>
+      var clearance: Double
+      var polygonIndex: Int?
+    }
+
+    var candidates: [CandidateSpot] = []
+    var x = bounds.min.x + 0.25
+    while x <= bounds.max.x - 0.25 + 1e-6 {
+      var y = bounds.min.y + 0.25
+      while y <= bounds.max.y - 0.25 + 1e-6 {
+        let pt = SIMD2<Double>(x, y)
+        let polyIdx: Int?
+        if floorPolygons.isEmpty {
+          polyIdx = nil
+        } else if let idx = floorPolygons.firstIndex(where: { pointInPolygon(pt, polygon: $0) }) {
+          polyIdx = idx
+        } else {
+          y += step
+          continue
+        }
+
+        let clearance = obstacleClearance(at: pt, geoms: lowObstacles)
+        if clearance >= 0.28 {
+          candidates.append(CandidateSpot(point: pt, clearance: clearance, polygonIndex: polyIdx))
+        }
+        y += step
+      }
+      x += step
+    }
+
+    guard !candidates.isEmpty else { return [] }
+
+    func isClearOfDoorways(_ point: SIMD2<Double>, radius: Double) -> Bool {
+      let minDoorwayDistance = 0.45 + radius
+      return openDoorways.allSatisfy { doorway in
+        doorwayClearanceDistance(from: point, to: doorway) >= minDoorwayDistance
+      }
+    }
+
+    var placed: [MJCFInteractiveProp] = []
+    var coveredPolygons: Set<Int> = []
+
+    // 1. Kickable orange soccer ball matching `scene_playground.xml` dimensions & inertia.
+    let ballRadius = 0.035
+    let ballMinSpawnDistance = 0.35
+    let ballMinObstacleClearance = ballRadius + 0.26
+
+    let bestBallSpot = candidates
+      .filter { spot in
+        let spawnDist = simd_length(spot.point)
+        return spawnDist >= ballMinSpawnDistance
+          && spot.clearance >= ballMinObstacleClearance
+          && isClearOfDoorways(spot.point, radius: ballRadius)
+      }
+      .max { lhs, rhs in
+        ballPlacementScore(lhs.point, clearance: lhs.clearance)
+          < ballPlacementScore(rhs.point, clearance: rhs.clearance)
+      }
+
+    if let ballSpot = bestBallSpot {
+      placed.append(
+        MJCFInteractiveProp(
+          name: "soccer_ball",
+          kind: .soccerBall,
+          shape: .sphere(radius: ballRadius),
+          position: cleanVec3(SIMD3<Double>(ballSpot.point.x, ballSpot.point.y, ballRadius)),
+          mass: 0.015,
+          diagInertia: SIMD3<Double>(1.225e-5, 1.225e-5, 1.225e-5),
+          materialName: "prop_mat_ball",
+          friction: "0.5 0.005 0.0001"
+        )
+      )
+      if let idx = ballSpot.polygonIndex {
+        coveredPolygons.insert(idx)
+      }
+    }
+
+    // 2. Lightweight colorful pushable cones & toy blocks spread across open room spots.
+    struct PropSpec {
+      var name: String
+      var kind: MJCFPropKind
+      var shape: MJCFPropShape
+      var centerZ: Double
+      var mass: Double
+      var diagInertia: SIMD3<Double>
+      var materialName: String
+    }
+
+    let specs: [PropSpec] = [
+      PropSpec(
+        name: "prop_cone_teal_01",
+        kind: .targetCone,
+        shape: .cylinder(radius: 0.055, halfHeight: 0.11),
+        centerZ: 0.11,
+        mass: 0.04,
+        diagInertia: SIMD3<Double>(1.91e-4, 1.91e-4, 6.05e-5),
+        materialName: "prop_mat_teal"
+      ),
+      PropSpec(
+        name: "prop_block_yellow_02",
+        kind: .toyBlock,
+        shape: .box(halfExtents: SIMD3<Double>(0.055, 0.055, 0.055)),
+        centerZ: 0.055,
+        mass: 0.035,
+        diagInertia: SIMD3<Double>(7.06e-5, 7.06e-5, 7.06e-5),
+        materialName: "prop_mat_yellow"
+      ),
+      PropSpec(
+        name: "prop_cone_magenta_03",
+        kind: .targetCone,
+        shape: .cylinder(radius: 0.055, halfHeight: 0.11),
+        centerZ: 0.11,
+        mass: 0.04,
+        diagInertia: SIMD3<Double>(1.91e-4, 1.91e-4, 6.05e-5),
+        materialName: "prop_mat_magenta"
+      ),
+      PropSpec(
+        name: "prop_block_red_04",
+        kind: .toyBlock,
+        shape: .box(halfExtents: SIMD3<Double>(0.055, 0.055, 0.055)),
+        centerZ: 0.055,
+        mass: 0.035,
+        diagInertia: SIMD3<Double>(7.06e-5, 7.06e-5, 7.06e-5),
+        materialName: "prop_mat_red"
+      ),
+    ]
+
+    let maxSecondaryProps = min(specs.count, max(2, floorPolygons.count * 2))
+    let minPropSpacing = 0.65
+    let minSecondarySpawnDistance = 0.55
+
+    for spec in specs.prefix(maxSecondaryProps) {
+      let radius = spec.shape.footprintRadius
+      let minClearance = radius + 0.28
+      let validSpots = candidates.filter { spot in
+        let spawnDist = simd_length(spot.point)
+        guard spawnDist >= minSecondarySpawnDistance,
+              spot.clearance >= minClearance,
+              isClearOfDoorways(spot.point, radius: radius)
+        else {
+          return false
+        }
+        return placed.allSatisfy { existing in
+          let existing2D = SIMD2<Double>(existing.position.x, existing.position.y)
+          return simd_distance(spot.point, existing2D) >= minPropSpacing
+        }
+      }
+
+      guard let chosen = validSpots.max(by: { lhs, rhs in
+        secondaryPropScore(
+          lhs.point,
+          clearance: lhs.clearance,
+          polygonIndex: lhs.polygonIndex,
+          coveredPolygons: coveredPolygons,
+          placed: placed
+        ) < secondaryPropScore(
+          rhs.point,
+          clearance: rhs.clearance,
+          polygonIndex: rhs.polygonIndex,
+          coveredPolygons: coveredPolygons,
+          placed: placed
+        )
+      }) else {
+        continue
+      }
+
+      placed.append(
+        MJCFInteractiveProp(
+          name: spec.name,
+          kind: spec.kind,
+          shape: spec.shape,
+          position: cleanVec3(SIMD3<Double>(chosen.point.x, chosen.point.y, spec.centerZ)),
+          mass: spec.mass,
+          diagInertia: spec.diagInertia,
+          materialName: spec.materialName,
+          friction: "0.6 0.005 0.0001"
+        )
+      )
+      if let idx = chosen.polygonIndex {
+        coveredPolygons.insert(idx)
+      }
+    }
+
+    return placed
+  }
+
+  private static func ballPlacementScore(_ point: SIMD2<Double>, clearance: Double) -> Double {
+    let distFromSpawn = simd_length(point)
+    let idealDist = 0.55
+    let distPenalty = abs(distFromSpawn - idealDist) * 0.9
+    let forwardBonus = point.x > 0.15 && abs(point.y) <= max(point.x * 0.85, 0.35) ? 0.55 : 0.0
+    return min(clearance, 0.85) + forwardBonus - distPenalty
+  }
+
+  private static func secondaryPropScore(
+    _ point: SIMD2<Double>,
+    clearance: Double,
+    polygonIndex: Int?,
+    coveredPolygons: Set<Int>,
+    placed: [MJCFInteractiveProp]
+  ) -> Double {
+    let uncoveredRoomBonus = polygonIndex.map { coveredPolygons.contains($0) ? 0.0 : 1.5 } ?? 0.0
+    let minExistingDist = placed.map {
+      simd_distance(point, SIMD2<Double>($0.position.x, $0.position.y))
+    }.min() ?? 1.5
+    let spreadScore = min(minExistingDist, 2.2) * 0.45
+    let spawnDist = simd_length(point)
+    let farPenalty = max(0, spawnDist - 3.0) * 0.15
+    return uncoveredRoomBonus + min(clearance, 0.95) * 0.8 + spreadScore - farPenalty
+  }
+
+  private static func formatInertia(_ v: SIMD3<Double>) -> String {
+    let fmt: (Double) -> String = { String(format: "%.4g", $0) }
+    return "\(fmt(v.x)) \(fmt(v.y)) \(fmt(v.z))"
+  }
+
   private static func formatScalar(_ value: Double) -> String {
     let cleaned = abs(value) < 1e-5 ? 0.0 : value
     var formatted = String(format: "%.4f", cleaned)
@@ -1589,6 +1917,7 @@ extension MJCFSceneExporter {
   private static func renderMJCFXML(
     configuration: MJCFExportConfiguration,
     geoms: [MJCFGeneratedGeom],
+    interactiveProps: [MJCFInteractiveProp],
     summary: MJCFExportSummary
   ) -> String {
     var lines: [String] = []
@@ -1617,17 +1946,28 @@ extension MJCFSceneExporter {
     lines.append("        <material name=\"scan_mat_appliance\" rgba=\"0.72 0.74 0.76 1\" reflectance=\"0.14\" />")
     lines.append("        <material name=\"scan_mat_ceramic\" rgba=\"0.90 0.92 0.94 1\" reflectance=\"0.16\" />")
     lines.append("        <material name=\"scan_mat_accent\" rgba=\"0.46 0.43 0.40 1\" reflectance=\"0.04\" />")
+    if !interactiveProps.isEmpty {
+      lines.append("        <material name=\"prop_mat_ball\" rgba=\"1.0 0.48 0.04 1\" reflectance=\"0.08\" />")
+      lines.append("        <material name=\"prop_mat_teal\" rgba=\"0.08 0.76 0.74 1\" reflectance=\"0.08\" />")
+      lines.append("        <material name=\"prop_mat_yellow\" rgba=\"0.96 0.80 0.10 1\" reflectance=\"0.08\" />")
+      lines.append("        <material name=\"prop_mat_magenta\" rgba=\"0.92 0.28 0.64 1\" reflectance=\"0.08\" />")
+      lines.append("        <material name=\"prop_mat_red\" rgba=\"0.88 0.18 0.16 1\" reflectance=\"0.08\" />")
+    }
     lines.append("    </asset>")
     lines.append("")
     lines.append("    <worldbody>")
+    let propCommentSuffix = interactiveProps.isEmpty
+      ? ""
+      : ", \(interactiveProps.count) interactive prop(s)"
     lines.append(
       String(
-        format: "        <!-- Generated by MicroduckRemote RoomPlan exporter: %@ (%d room(s), %d wall segment(s), %d open doorway(s), %d furniture geom(s)) -->",
+        format: "        <!-- Generated by MicroduckRemote RoomPlan exporter: %@ (%d room(s), %d wall segment(s), %d open doorway(s), %d furniture geom(s)%@) -->",
         configuration.fileName,
         summary.roomCount,
         summary.wallSegmentCount,
         summary.openDoorwayCount,
-        summary.furnitureCount
+        summary.furnitureCount,
+        propCommentSuffix
       )
     )
     lines.append("        <light pos=\"0 0 3.5\" dir=\"0 0 -1\" directional=\"true\" />")
@@ -1663,38 +2003,88 @@ extension MJCFSceneExporter {
       lines.append("        <geom \(attrs.joined(separator: " ")) />")
     }
 
+    if !interactiveProps.isEmpty {
+      lines.append("")
+      lines.append("        <!-- Interactive Playground Props -->")
+      for prop in interactiveProps {
+        let typeAttr: String
+        let sizeAttr: String
+        switch prop.shape {
+        case let .sphere(radius):
+          typeAttr = "sphere"
+          sizeAttr = formatScalar(radius)
+        case let .cylinder(radius, halfHeight):
+          typeAttr = "cylinder"
+          sizeAttr = "\(formatScalar(radius)) \(formatScalar(halfHeight))"
+        case let .box(halfExtents):
+          typeAttr = "box"
+          sizeAttr = formatVec3(halfExtents)
+        }
+        lines.append("        <body name=\"\(prop.name)\" pos=\"\(formatVec3(prop.position))\">")
+        lines.append("            <freejoint name=\"\(prop.name)_free\" />")
+        lines.append("            <inertial pos=\"0 0 0\" mass=\"\(formatScalar(prop.mass))\" diaginertia=\"\(formatInertia(prop.diagInertia))\" />")
+        lines.append("            <geom name=\"\(prop.name)_geom\" type=\"\(typeAttr)\" size=\"\(sizeAttr)\" material=\"\(prop.materialName)\" friction=\"\(prop.friction)\" contype=\"1\" conaffinity=\"1\" />")
+        lines.append("        </body>")
+      }
+    }
+
+    let propQposLines = interactiveProps.map { prop in
+      "        \(formatVec3(prop.position)) 1 0 0 0"
+    }
+
+    func appendQposLines(_ baseLines: [String]) {
+      let allLines = baseLines + propQposLines
+      for (idx, line) in allLines.enumerated() {
+        if idx == allLines.count - 1 {
+          lines.append("\(line)\"")
+        } else {
+          lines.append(line)
+        }
+      }
+    }
+
     lines.append("    </worldbody>")
     lines.append("    <keyframe>")
     lines.append("        <key name=\"INIT\" qpos=\"")
-    lines.append("        0 0 0.12 1 0 0 0")
-    lines.append("        0 0 0 0 0 0 0 0 0 0")
-    lines.append("        0 0 0 0 0 0 0 0")
-    lines.append("        0 0 0 0 0 0 0 0 0 0\"")
+    appendQposLines([
+      "        0 0 0.12 1 0 0 0",
+      "        0 0 0 0 0 0 0 0 0 0",
+      "        0 0 0 0 0 0 0 0",
+      "        0 0 0 0 0 0 0 0 0 0",
+    ])
     lines.append("        ctrl=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0\"/>")
     lines.append("        <key name=\"STAND\" qpos=\"")
-    lines.append("        0 0 0.12 1 0 0 0")
-    lines.append("")
-    lines.append("        0 0 -0.08726646259971647 0 -0.457924 0 -0.004940 0 0.452984 0")
-    lines.append("        0.3490658503988659 0 0.3490658503988659 0 0 0 0 0")
-    lines.append("        0 0 0.08726646259971647 0 0.457924 0 0.004940 0 -0.452984 0\"")
+    appendQposLines([
+      "        0 0 0.12 1 0 0 0",
+      "",
+      "        0 0 -0.08726646259971647 0 -0.457924 0 -0.004940 0 0.452984 0",
+      "        0.3490658503988659 0 0.3490658503988659 0 0 0 0 0",
+      "        0 0 0.08726646259971647 0 0.457924 0 0.004940 0 -0.452984 0",
+    ])
     lines.append("         ctrl=\"")
     lines.append("        0 -0.08726646259971647 -0.457924 -0.004940 0.452984")
     lines.append("        0.3490658503988659 0.3490658503988659 0 0")
     lines.append("        0 0.08726646259971647 0.457924 0.004940 -0.452984\"")
     lines.append("        />")
     lines.append("        <key name=\"SIT\" qpos=\"")
-    lines.append("        0 0 0.07 1 0 0 0")
-    lines.append("        0 0 0 0 -0.5236 0 1.0472 0 0 0")
-    lines.append("        0.5 0 1.6 0 0 0 0 0")
-    lines.append("        0 0 0 0 0.5236 0 -1.0472 0 0 0\" ctrl=\"")
+    appendQposLines([
+      "        0 0 0.07 1 0 0 0",
+      "        0 0 0 0 -0.5236 0 1.0472 0 0 0",
+      "        0.5 0 1.6 0 0 0 0 0",
+      "        0 0 0 0 0.5236 0 -1.0472 0 0 0",
+    ])
+    lines.append("        ctrl=\"")
     lines.append("        0 0 -0.5236 1.0472 0")
     lines.append("        0.5 1.6 0 0 0")
     lines.append("        0 0.5236 -1.0472 0\"/>")
     lines.append("        <key name=\"FOLD\" qpos=\"")
-    lines.append("        0 0 0.07 1 0 0 0")
-    lines.append("        0 0 0 0 1.57 0 1.57 0 0 0")
-    lines.append("        1 0 1 0 0 0 0 0")
-    lines.append("        0 0 0 0 -1.57 0 -1.57 0 0 0\" ctrl=\"")
+    appendQposLines([
+      "        0 0 0.07 1 0 0 0",
+      "        0 0 0 0 1.57 0 1.57 0 0 0",
+      "        1 0 1 0 0 0 0 0",
+      "        0 0 0 0 -1.57 0 -1.57 0 0 0",
+    ])
+    lines.append("        ctrl=\"")
     lines.append("        0 0 1.57 1.57 0")
     lines.append("        1 1 0 0")
     lines.append("        0 0 -1.57 -1.57 0\"/>")
