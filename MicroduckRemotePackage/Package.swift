@@ -15,6 +15,7 @@ let package = Package(
     .library(name: "DuckIntents", targets: ["DuckIntents"]),
     .library(name: "DuckProtocol", targets: ["DuckProtocol"]),
     .library(name: "DuckWebRTC", targets: ["DuckWebRTC"]),
+    .library(name: "RoomScanFeature", targets: ["RoomScanFeature"]),
     .library(name: "TelemetryFeature", targets: ["TelemetryFeature"]),
     .library(name: "TricksFeature", targets: ["TricksFeature"]),
   ],
@@ -89,6 +90,18 @@ let package = Package(
       ]
     ),
     .target(
+      name: "RoomScanFeature",
+      dependencies: [
+        "DuckDependencies",
+        "DuckProtocol",
+        .product(name: "CasePaths", package: "swift-case-paths"),
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
+        .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
+        .product(name: "SwiftUINavigation", package: "swift-navigation"),
+      ]
+    ),
+    .target(
       name: "TelemetryFeature",
       dependencies: [
         "DuckDependencies",
@@ -106,6 +119,7 @@ let package = Package(
         "CockpitFeature",
         "DuckDependencies",
         "DuckProtocol",
+        "RoomScanFeature",
         "TelemetryFeature",
         "TricksFeature",
         .product(name: "CasePaths", package: "swift-case-paths"),
@@ -141,6 +155,14 @@ let package = Package(
       name: "CockpitFeatureTests",
       dependencies: [
         "CockpitFeature",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .testTarget(
+      name: "RoomScanFeatureTests",
+      dependencies: [
+        "RoomScanFeature",
         .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]

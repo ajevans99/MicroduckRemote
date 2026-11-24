@@ -4,6 +4,7 @@ import Dependencies
 import DuckDependencies
 import DuckIntents
 import DuckWebRTC
+import RoomScanFeature
 import SwiftUI
 
 struct MicroduckAppIntentsRegistration: AppIntentsPackage {
@@ -25,6 +26,8 @@ struct MicroduckRemoteApp: App {
       $0.duckSharedState = .liveValue
       $0.haptics = .liveValue
       $0.gamepad = .liveValue
+      $0.roomScan = .liveValue
+      $0.iCloudSceneSync = .liveValue
     }
     _model = State(initialValue: AppModel())
   }

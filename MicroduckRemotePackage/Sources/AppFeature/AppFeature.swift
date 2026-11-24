@@ -7,6 +7,7 @@ import Observation
 import SwiftUI
 import SwiftUINavigation
 import CockpitFeature
+import RoomScanFeature
 import TelemetryFeature
 import TricksFeature
 
@@ -185,6 +186,7 @@ public final class AppModel {
   public enum Tab: Hashable {
     case cockpit
     case tricks
+    case roomScan
     case telemetry
   }
 
@@ -195,6 +197,7 @@ public final class AppModel {
   public var selectedTab: Tab = .cockpit
   public var cockpitModel = CockpitModel()
   public var tricksModel = TricksModel()
+  public var roomScanModel = RoomScanModel()
   public var telemetryModel = TelemetryModel()
   public var connectionSheet: ConnectionSheetModel?
   private var didAutoConnect = false
@@ -251,6 +254,9 @@ public struct RootAppView: View {
       }
       Tab("Tricks", systemImage: "sparkles", value: AppModel.Tab.tricks) {
         TricksGalleryView(model: model.tricksModel)
+      }
+      Tab("Room Scan", systemImage: "cube.transparent", value: AppModel.Tab.roomScan) {
+        RoomScanView(model: model.roomScanModel)
       }
       Tab("Telemetry", systemImage: "waveform.path.ecg.rectangle", value: AppModel.Tab.telemetry) {
         TelemetryInspectorView(model: model.telemetryModel)
@@ -403,6 +409,8 @@ public struct ConnectionSheetView: View {
   traits: .dependencies {
     $0.duckSession = .previewValue
     $0.hubCatalog = .previewValue
+    $0.roomScan = .previewValue
+    $0.iCloudSceneSync = .previewValue
   }
 ) {
   RootAppView(model: AppModel())

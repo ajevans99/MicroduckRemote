@@ -10,6 +10,7 @@
 		37B9DF43345381FD98FF881C /* AppFeature in Frameworks */ = {isa = PBXBuildFile; productRef = C2F2C7143789B46163BD7FD3 /* AppFeature */; };
 		5B1E8F07C391D7E8738C5BA9 /* MicroduckRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86D3FEC1E450AB7CD7E32AE /* MicroduckRemoteApp.swift */; };
 		768C408DC026B014304AAC8B /* DuckIntents in Frameworks */ = {isa = PBXBuildFile; productRef = BE1246E34A1A710C3A00B380 /* DuckIntents */; };
+		7BC217811D1DF1E0A4DFF679 /* RoomScanFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 11E1333FC2EB2B836768A10C /* RoomScanFeature */; };
 		7C93FE2DD280FCA45FB2DA65 /* MicroduckShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4891082A5C7C9FDEEA9677FD /* MicroduckShortcuts.swift */; };
 		B9614D6F312229753E1500AF /* DuckDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 1ABDF28BFCDF93D4871A42DD /* DuckDependencies */; };
 		E199C00CEE5A9326C35E46EB /* DuckWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 984C0160F44D455D8F14E49C /* DuckWebRTC */; };
@@ -34,6 +35,7 @@
 				B9614D6F312229753E1500AF /* DuckDependencies in Frameworks */,
 				768C408DC026B014304AAC8B /* DuckIntents in Frameworks */,
 				E199C00CEE5A9326C35E46EB /* DuckWebRTC in Frameworks */,
+				7BC217811D1DF1E0A4DFF679 /* RoomScanFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,6 +99,7 @@
 				1ABDF28BFCDF93D4871A42DD /* DuckDependencies */,
 				BE1246E34A1A710C3A00B380 /* DuckIntents */,
 				984C0160F44D455D8F14E49C /* DuckWebRTC */,
+				11E1333FC2EB2B836768A10C /* RoomScanFeature */,
 			);
 			productName = MicroduckRemote;
 			productReference = 5E58314CC01250C5CCA79A91 /* MicroduckRemote.app */;
@@ -237,6 +240,7 @@
 				DEVELOPMENT_TEAM = 3Z68NFJBHS;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Microduck;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scans rooms on-device using the camera and LiDAR scanner with Apple RoomPlan to build MuJoCo XML scenes for Microduck.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connects to your Microduck simulator or robot over your local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -266,6 +270,7 @@
 				DEVELOPMENT_TEAM = 3Z68NFJBHS;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Microduck;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scans rooms on-device using the camera and LiDAR scanner with Apple RoomPlan to build MuJoCo XML scenes for Microduck.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Connects to your Microduck simulator or robot over your local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -371,6 +376,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		11E1333FC2EB2B836768A10C /* RoomScanFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RoomScanFeature;
+		};
 		1ABDF28BFCDF93D4871A42DD /* DuckDependencies */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DuckDependencies;
