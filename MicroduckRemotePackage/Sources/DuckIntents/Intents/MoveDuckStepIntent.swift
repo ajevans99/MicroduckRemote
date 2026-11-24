@@ -4,8 +4,7 @@ import DuckDependencies
 import DuckProtocol
 import Foundation
 
-@AppIntent(.tool)
-public struct MoveDuckStepIntent: LiveActivityIntent {
+public struct MoveDuckStepIntent: AppIntent {
   public static let title: LocalizedStringResource = "Move Microduck"
   public static let description = IntentDescription(
     "Walks, sidesteps, or turns Microduck for a bounded duration (0.2 to 5.0 seconds) at 10 Hz, automatically checking upright safety and stopping early if the forward 8x8 depth sensor detects an obstacle."
@@ -98,3 +97,6 @@ public struct MoveDuckStepIntent: LiveActivityIntent {
     }
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension MoveDuckStepIntent: ToolIntent, LiveActivityIntent {}

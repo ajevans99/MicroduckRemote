@@ -6,7 +6,7 @@ let package = Package(
   name: "MicroduckRemotePackage",
   platforms: [
     .iOS("27.3"),
-    .macOS("27.3"),
+    .macOS("27.2"),
   ],
   products: [
     .library(name: "AppFeature", targets: ["AppFeature"]),
@@ -15,6 +15,7 @@ let package = Package(
     .library(name: "DuckIntents", targets: ["DuckIntents"]),
     .library(name: "DuckProtocol", targets: ["DuckProtocol"]),
     .library(name: "DuckWebRTC", targets: ["DuckWebRTC"]),
+    .library(name: "SimulatorFeature", targets: ["SimulatorFeature"]),
     .library(name: "TelemetryFeature", targets: ["TelemetryFeature"]),
     .library(name: "TricksFeature", targets: ["TricksFeature"]),
   ],
@@ -101,11 +102,22 @@ let package = Package(
       ]
     ),
     .target(
+      name: "SimulatorFeature",
+      dependencies: [
+        "DuckDependencies",
+        "DuckProtocol",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
+        .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
+      ]
+    ),
+    .target(
       name: "AppFeature",
       dependencies: [
         "CockpitFeature",
         "DuckDependencies",
         "DuckProtocol",
+        "SimulatorFeature",
         "TelemetryFeature",
         "TricksFeature",
         .product(name: "CasePaths", package: "swift-case-paths"),
@@ -149,6 +161,14 @@ let package = Package(
       name: "TricksFeatureTests",
       dependencies: [
         "TricksFeature",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .testTarget(
+      name: "SimulatorFeatureTests",
+      dependencies: [
+        "SimulatorFeature",
         .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]

@@ -9,6 +9,8 @@ import IdentifiedCollections
 
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 extension HubCatalogClient: DependencyKey {
@@ -427,6 +429,11 @@ private final class HuggingFacePKCECoordinator: NSObject, ASWebAuthenticationPre
     #if canImport(UIKit)
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+      return window
+    }
+    return ASPresentationAnchor()
+    #elseif canImport(AppKit)
+    if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
       return window
     }
     return ASPresentationAnchor()

@@ -3,8 +3,7 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-@AppIntent(.tool)
-public struct EmergencyStopDuckIntent: LiveActivityIntent {
+public struct EmergencyStopDuckIntent: AppIntent {
   public static let title: LocalizedStringResource = "Stop Microduck"
   public static let description = IntentDescription(
     "Immediately halts Microduck's walking movement and cancels any active trick while keeping leg servos upright."
@@ -37,3 +36,6 @@ public struct EmergencyStopDuckIntent: LiveActivityIntent {
     return .result(dialog: "Stopped \(duckName).")
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension EmergencyStopDuckIntent: ToolIntent, LiveActivityIntent {}

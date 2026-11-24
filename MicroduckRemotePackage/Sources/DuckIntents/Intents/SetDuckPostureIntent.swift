@@ -3,8 +3,7 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-@AppIntent(.tool)
-public struct SetDuckPostureIntent: LiveActivityIntent {
+public struct SetDuckPostureIntent: AppIntent {
   public static let title: LocalizedStringResource = "Set Microduck Posture"
   public static let description = IntentDescription(
     "Changes Microduck's posture idempotently: Stand Up (also recovers if fallen), Sit Down, Stand Back Up (explicit fall recovery), or Home Pose."
@@ -84,3 +83,6 @@ public struct SetDuckPostureIntent: LiveActivityIntent {
     }
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension SetDuckPostureIntent: ToolIntent, LiveActivityIntent {}

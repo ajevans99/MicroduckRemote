@@ -16,6 +16,7 @@ public struct InstalledSkillEntity: AppEntity, Equatable, Sendable {
 
   public let id: String
 
+  #if os(iOS)
   @Property(
     title: "Name",
     description: "Human-readable name of the trick installed on Microduck."
@@ -33,6 +34,16 @@ public struct InstalledSkillEntity: AppEntity, Equatable, Sendable {
     description: "True if this trick was installed from Hugging Face rather than built into firmware."
   )
   public var isCustom: Bool
+  #else
+  @Property(title: "Name")
+  public var name: String
+
+  @Property(title: "Duration (Seconds)")
+  public var durationSeconds: Double?
+
+  @Property(title: "Custom Trick")
+  public var isCustom: Bool
+  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     let subtitleText: String

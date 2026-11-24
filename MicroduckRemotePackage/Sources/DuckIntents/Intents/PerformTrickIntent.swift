@@ -3,8 +3,7 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-@AppIntent(.tool)
-public struct PerformTrickIntent: LiveActivityIntent {
+public struct PerformTrickIntent: AppIntent {
   public static let title: LocalizedStringResource = "Perform Duck Trick"
   public static let description = IntentDescription(
     "Performs a built-in skill or custom Hugging Face trick currently installed on Microduck (such as Roulade, Kick Left, Kick Right, Ground Pick, or Polite Bow). Microduck must be standing upright."
@@ -56,3 +55,6 @@ public struct PerformTrickIntent: LiveActivityIntent {
     return .result(dialog: "\(duckName) is performing \(trick.name).")
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension PerformTrickIntent: ToolIntent, LiveActivityIntent {}

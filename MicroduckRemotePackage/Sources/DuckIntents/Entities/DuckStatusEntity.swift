@@ -5,11 +5,12 @@ import Foundation
 import SwiftUI
 
 /// Transient telemetry snapshot returned by `GetDuckStatusIntent` and rendered inside Siri
-/// via `CardSnippet` (`SnippetRepresentableEntity`).
-public struct DuckStatusEntity: TransientAppEntity, SnippetRepresentableEntity, Equatable, Sendable {
+/// via `CardSnippet` (`SnippetRepresentableEntity`) on iOS/macOS 27.3+.
+public struct DuckStatusEntity: TransientAppEntity, Equatable, Sendable {
   public static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Duck Status")
   public static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
 
+  #if os(iOS)
   @Property(title: "Duck Name", description: "Display name of the connected Microduck robot or simulator.")
   public var duckName: String
 
@@ -51,6 +52,49 @@ public struct DuckStatusEntity: TransientAppEntity, SnippetRepresentableEntity, 
 
   @Property(title: "Installed Tricks", description: "Number of tricks currently installed on the duck.")
   public var installedTrickCount: Int
+  #else
+  @Property(title: "Duck Name")
+  public var duckName: String
+
+  @Property(title: "Connected")
+  public var isConnected: Bool
+
+  @Property(title: "Simulated")
+  public var isSimulated: Bool
+
+  @Property(title: "Posture")
+  public var postureSummary: String
+
+  @Property(title: "Active Policy")
+  public var activePolicy: String
+
+  @Property(title: "Fallen")
+  public var isFallen: Bool
+
+  @Property(title: "Picked Up")
+  public var isPickedUp: Bool
+
+  @Property(title: "Battery Voltage")
+  public var batteryVolts: Double?
+
+  @Property(title: "Battery Percent")
+  public var batteryPercent: Int?
+
+  @Property(title: "Max Motor Temperature (°C)")
+  public var maxMotorTempC: Int?
+
+  @Property(title: "Hottest Servo")
+  public var hottestMotor: String?
+
+  @Property(title: "Control Loop (Hz)")
+  public var controlLoopHz: Double?
+
+  @Property(title: "Movement Limiter")
+  public var movementLimitReason: String?
+
+  @Property(title: "Installed Tricks")
+  public var installedTrickCount: Int
+  #endif
 
   public var displayRepresentation: DisplayRepresentation {
     var parts = [postureSummary]
@@ -169,7 +213,10 @@ public struct DuckStatusEntity: TransientAppEntity, SnippetRepresentableEntity, 
       && lhs.movementLimitReason == rhs.movementLimitReason
       && lhs.installedTrickCount == rhs.installedTrickCount
   }
+}
 
+@available(iOS 27.3, macOS 27.3, *)
+extension DuckStatusEntity: SnippetRepresentableEntity {
   public static var snippet: some EntitySnippetContent<Self> {
     CardSnippet(supportedFamilies: [.standard, .compact]) { status, context in
       DuckStatusCardView(status: status, isCompact: context.family == .compact)

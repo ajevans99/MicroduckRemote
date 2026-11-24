@@ -6,6 +6,8 @@ import SwiftUI
 
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 @Observable
@@ -72,6 +74,9 @@ public final class HuggingFaceSignInSheetModel: Identifiable {
     guard let code = deviceCode?.userCode else { return }
     #if canImport(UIKit)
     UIPasteboard.general.string = code
+    #elseif canImport(AppKit)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(code, forType: .string)
     #endif
     codeCopied = true
     urlCopied = false
@@ -82,6 +87,9 @@ public final class HuggingFaceSignInSheetModel: Identifiable {
     guard let uri = deviceCode?.verificationURI else { return }
     #if canImport(UIKit)
     UIPasteboard.general.string = uri
+    #elseif canImport(AppKit)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(uri, forType: .string)
     #endif
     urlCopied = true
     codeCopied = false
@@ -167,6 +175,9 @@ public struct HuggingFaceSignInSheetView: View {
         await model.task()
       }
     }
+    #if os(macOS)
+    .frame(minWidth: 460, idealWidth: 500, minHeight: 500, idealHeight: 560)
+    #endif
   }
 
   private var deviceFlowCard: some View {

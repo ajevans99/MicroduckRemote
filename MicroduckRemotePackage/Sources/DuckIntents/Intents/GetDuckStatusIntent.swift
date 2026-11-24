@@ -3,8 +3,7 @@ import Dependencies
 import DuckDependencies
 import DuckProtocol
 
-@AppIntent(.tool)
-public struct GetDuckStatusIntent: LiveActivityIntent {
+public struct GetDuckStatusIntent: AppIntent {
   public static let title: LocalizedStringResource = "Get Microduck Status"
   public static let description = IntentDescription(
     "Checks Microduck's live health, posture (standing, sitting, fallen, picked up), battery voltage and percentage, hottest servo temperature, 50 Hz control loop rate, and movement limiters."
@@ -37,3 +36,6 @@ public struct GetDuckStatusIntent: LiveActivityIntent {
     )
   }
 }
+
+@available(iOS 27.3, macOS 27.3, *)
+extension GetDuckStatusIntent: ToolIntent, LiveActivityIntent {}
