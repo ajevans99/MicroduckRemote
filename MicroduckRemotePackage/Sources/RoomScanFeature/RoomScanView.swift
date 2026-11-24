@@ -317,6 +317,10 @@ public struct RoomScanView: View {
             compactStat(title: "Doors", value: "\(result.summary.openDoorwayCount)")
             Divider()
             compactStat(title: "Objects", value: "\(result.summary.furnitureCount)")
+            if result.summary.interactivePropCount > 0 {
+              Divider()
+              compactStat(title: "Props", value: "\(result.summary.interactivePropCount)")
+            }
             Divider()
             compactStat(
               title: "Size",
@@ -396,6 +400,7 @@ public struct RoomScanView: View {
 
           Toggle("Furniture Collisions", isOn: $model.exportConfiguration.includeFurniture)
           Toggle("Floor Textures", isOn: $model.exportConfiguration.includeFloorOverlays)
+          Toggle("Add Playground Props", isOn: $model.exportConfiguration.includePlaygroundProps)
           Toggle("Align Walls to Axes", isOn: $model.exportConfiguration.alignDominantWallAxis)
           Toggle("Auto-Clear Spawn Point", isOn: $model.exportConfiguration.autoClearSpawnOrigin)
         }

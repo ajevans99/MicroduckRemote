@@ -130,6 +130,26 @@ public struct FloorPlanPreviewCanvas: View {
         )
       }
 
+      for prop in preview.interactiveProps {
+        let propScreen = toScreen(SIMD2<Double>(prop.position.x, prop.position.y))
+        let rPx = max(prop.footprintRadius * pixelsPerMeter, 4.5)
+        let propRect = CGRect(
+          x: propScreen.x - rPx,
+          y: propScreen.y - rPx,
+          width: rPx * 2,
+          height: rPx * 2
+        )
+        let path: Path
+        switch prop.kind {
+        case .soccerBall, .targetCone:
+          path = Path(ellipseIn: propRect)
+        case .toyBlock:
+          path = Path(roundedRect: propRect, cornerRadius: 2)
+        }
+        context.fill(path, with: .color(propColor(for: prop)))
+        context.stroke(path, with: .color(.white.opacity(0.9)), lineWidth: 1.2)
+      }
+
       let spawnScreen = toScreen(preview.spawnPoint)
       if preview.spawnClearanceMeters > 0.05 {
         let clearRadiusPx = min(preview.spawnClearanceMeters, 0.45) * pixelsPerMeter
@@ -165,6 +185,9 @@ public struct FloorPlanPreviewCanvas: View {
         legendDot(color: .white.opacity(0.9), label: "Wall")
         legendDot(color: .green, label: "Open Doorway")
         legendDot(color: .orange, label: "Furniture")
+        if !preview.interactiveProps.isEmpty {
+          legendDot(color: .teal, label: "Props")
+        }
         legendDot(color: .yellow, label: "Duck (0,0)")
       }
       .font(.caption2.weight(.medium))
@@ -182,6 +205,23 @@ public struct FloorPlanPreviewCanvas: View {
         .padding(.vertical, 4)
         .background(.black.opacity(0.55), in: Capsule())
         .padding(10)
+    }
+  }
+
+  private func propColor(for prop: MJCFInteractiveProp) -> Color {
+    switch prop.materialName {
+    case "prop_mat_ball":
+      Color(red: 1.0, green: 0.48, blue: 0.04)
+    case "prop_mat_teal":
+      Color(red: 0.08, green: 0.76, blue: 0.74)
+    case "prop_mat_yellow":
+      Color(red: 0.96, green: 0.80, blue: 0.10)
+    case "prop_mat_magenta":
+      Color(red: 0.92, green: 0.28, blue: 0.64)
+    case "prop_mat_red":
+      Color(red: 0.88, green: 0.18, blue: 0.16)
+    default:
+      .teal
     }
   }
 

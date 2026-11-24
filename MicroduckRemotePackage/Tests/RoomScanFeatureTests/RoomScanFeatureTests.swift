@@ -514,6 +514,119 @@ import simd
       expectNoDifference(model.statusToast, "Deleted scene_my_apartment.xml")
     }
   }
+
+  @Test func playgroundPropsPlaceCollisionFreeClearOfSpawnDoorwaysAndMatchKeyframeQposCount() throws {
+    let result = MJCFSceneExporter.export(
+      capture: .sampleTwoRoomApartment,
+      configuration: MJCFExportConfiguration(
+        sceneName: "playground_apartment",
+        doorPolicy: .openDoorwaysOnly,
+        includeFurniture: true,
+        includeFloorOverlays: true,
+        includePlaygroundProps: true,
+        alignDominantWallAxis: true,
+        autoClearSpawnOrigin: true
+      )
+    )
+
+    expectNoDifference(result.interactiveProps.count >= 3, true)
+    expectNoDifference(result.summary.interactivePropCount, result.interactiveProps.count)
+    expectNoDifference(result.preview.interactiveProps, result.interactiveProps)
+
+    let ball = try #require(result.interactiveProps.first(where: { $0.kind == .soccerBall }))
+    expectNoDifference(ball.name, "soccer_ball")
+    expectNoDifference(ball.shape, .sphere(radius: 0.035))
+    expectNoDifference(abs(ball.mass - 0.015) < 1e-6, true)
+    expectNoDifference(abs(ball.position.z - 0.035) < 1e-5, true)
+
+    let lowObstacles = result.geoms.filter { $0.hasCollision && $0.bottomZ < 0.45 }
+    for prop in result.interactiveProps {
+      let prop2D = SIMD2<Double>(prop.position.x, prop.position.y)
+      // Must be clear of (0, 0) robot spawn zone:
+      let minSpawnDist = prop.kind == .soccerBall ? 0.34 : 0.54
+      expectNoDifference(simd_length(prop2D) >= minSpawnDist, true)
+
+      // Must be clear of all open doorways:
+      for doorway in result.preview.openDoorways {
+        let delta = prop2D - doorway.center
+        let projected = min(max(simd_dot(delta, doorway.tangent), -doorway.width * 0.5), doorway.width * 0.5)
+        let closest = doorway.center + doorway.tangent * projected
+        let doorwayDist = simd_distance(prop2D, closest)
+        expectNoDifference(doorwayDist >= 0.44 + prop.footprintRadius, true)
+      }
+
+      // Must not overlap any wall, closed door, or furniture bounding box:
+      for obstacle in lowObstacles {
+        let center = SIMD2<Double>(obstacle.position.x, obstacle.position.y)
+        let delta = prop2D - center
+        let dist: Double
+        switch obstacle.shape {
+        case let .cylinder(radius, _):
+          dist = simd_length(delta) - radius
+        case let .box(halfExtents):
+          let c = cos(-obstacle.yawRadians)
+          let s = sin(-obstacle.yawRadians)
+          let local = SIMD2<Double>(c * delta.x - s * delta.y, s * delta.x + c * delta.y)
+          let q = SIMD2<Double>(abs(local.x) - halfExtents.x, abs(local.y) - halfExtents.y)
+          dist = simd_length(simd_max(q, .zero)) + min(max(q.x, q.y), 0)
+        }
+        expectNoDifference(dist >= prop.footprintRadius + 0.24, true)
+      }
+    }
+
+    // Verify MJCF XML contains freejoint bodies, materials, and exact qpos counts for all 4 keyframes:
+    expectNoDifference(result.xml.contains("<material name=\"prop_mat_ball\""), true)
+    expectNoDifference(result.xml.contains("<body name=\"soccer_ball\""), true)
+    expectNoDifference(result.xml.contains("<freejoint name=\"soccer_ball_free\" />"), true)
+    expectNoDifference(result.xml.contains("diaginertia=\"1.225e-05 1.225e-05 1.225e-05\""), true)
+
+    let expectedQposCount = 35 + 7 * result.interactiveProps.count
+    for keyName in ["INIT", "STAND", "SIT", "FOLD"] {
+      let marker = "<key name=\"\(keyName)\" qpos=\""
+      let startRange = try #require(result.xml.range(of: marker))
+      let rest = result.xml[startRange.upperBound...]
+      let endQuote = try #require(rest.firstIndex(of: "\""))
+      let qposValues = rest[..<endQuote].split(whereSeparator: { $0.isWhitespace })
+      expectNoDifference(qposValues.count, expectedQposCount)
+    }
+  }
+
+  @Test func playgroundPropsEmitCleanWarningWhenRoomHasNoClearFloorSpace() {
+    let tinyRoom = ScannedRoom(
+      name: "Closet",
+      surfaces: [
+        ScannedSurface(
+          category: .floor,
+          transform: .translationAndYaw(x: 0, y: 0, z: 0),
+          dimensions: SIMD3<Float>(0.55, 0, 0.55)
+        ),
+        ScannedSurface(
+          category: .wall,
+          transform: .translationAndYaw(x: 0, y: 1.2, z: -0.27),
+          dimensions: SIMD3<Float>(0.55, 2.4, 0.10)
+        ),
+        ScannedSurface(
+          category: .wall,
+          transform: .translationAndYaw(x: 0, y: 1.2, z: 0.27),
+          dimensions: SIMD3<Float>(0.55, 2.4, 0.10)
+        ),
+      ]
+    )
+
+    let result = MJCFSceneExporter.export(
+      capture: ScannedSceneCapture(rooms: [tinyRoom], source: .singleRoom),
+      configuration: MJCFExportConfiguration(
+        includeFloorOverlays: false,
+        includePlaygroundProps: true,
+        autoClearSpawnOrigin: false
+      )
+    )
+
+    expectNoDifference(result.interactiveProps, [])
+    expectNoDifference(result.summary.interactivePropCount, 0)
+    expectNoDifference(result.summary.warnings.contains { $0.contains("playground props") }, true)
+    expectNoDifference(result.xml.contains("<freejoint"), false)
+  }
 }
 
 @MainActor
