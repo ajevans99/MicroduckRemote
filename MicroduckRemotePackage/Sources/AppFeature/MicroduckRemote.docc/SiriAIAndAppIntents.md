@@ -1,12 +1,12 @@
 # Siri AI & App Intents
 
-Control Microduck conversationally across Siri AI, Shortcuts, Spotlight, and the Action Button using 11 `@AppIntent(.tool)` tools, `Skills.skillsbundle` playbooks, and interactive `CardSnippet` cards.
+Control Microduck conversationally across Siri AI, Shortcuts, Spotlight, and the Action Button using 14 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks, and interactive `CardSnippet` cards.
 
 @Image(source: "siri-ai-card", alt: "Siri AI multi-step command and interactive Duck Status CardSnippet")
 
 ## Tool Intents
 
-All 11 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` and `LiveActivityIntent` (running in-process so they share the single-consumer WebRTC slot), and return structured values (`ReturnsValue`) so Siri AI can chain multi-step requests naturally.
+All 14 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` and `LiveActivityIntent` (running in-process so they share the single-consumer WebRTC slot), and return structured values (`ReturnsValue`) so Siri AI can chain multi-step requests naturally.
 
 | Intent | Return Value | Description |
 | --- | --- | --- |
@@ -14,12 +14,15 @@ All 11 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` 
 | `SetDuckPostureIntent` | `DuckStatusEntity` | Idempotent Stand Up (waits for rise), Sit Down (waits for 2.2 s settle), Fall Recovery, and Home Pose |
 | `MoveDuckStepIntent` | `String` | Bounded 10 Hz walk, sidestep, or in-place turn with upright safety and 8×8 ToF obstacle stop |
 | `GetDuckStatusIntent` | `DuckStatusEntity` | Live telemetry snapshot with interactive `CardSnippet` (**Sit** / **Stand Up** / **Stop**) |
+| `GetDuckProximityIntent` | `DuckProximityEntity` | Analyzes the 8×8 ToF grid into left/front/right clearances and low-object hints with a `CardSnippet` |
+| `ExploreApartmentIntent` | `String` | Bounded, cancellation-safe closed-loop apartment wander, obstacle avoidance, and prop inspection |
 | `PerformTrickIntent` | `String` | Runs any built-in or Hugging Face skill resolved via `InstalledSkillEntity` |
-| `PerformDuckRoutineIntent` | `DuckRoutine` | Executes a 2–6 step expressive skit generated via `@AppEntity(.generable)` |
+| `PerformDuckRoutineIntent` | `DuckRoutine` | Executes a 2–6 step expressive skit (movement, gaze, sounds, beak open, head tilt, crouch) via `@AppEntity(.generable)` |
+| `ControlDuckBeakIntent` | `String` | Opens, closes, sets exact percentage, or runs a 10 Hz animated chomp with guaranteed cleanup |
 | `DirectDuckGazeIntent` | `String` | Smoothly aims head pitch and yaw by percentage |
 | `SnapDuckPhotoIntent` | `DuckPhotoEntity` | Captures an upright JPEG frame (`Transferable` + `CardSnippet`) |
 | `PlayDuckSoundIntent` | `String` | Plays expressive sounds, including cancellation-safe 10 Hz held `wheee` |
-| `SetDuckModeIntent` | `String` | Toggles Autonomous Roaming, Soccer, or Laser Tracking modes |
+| `SetDuckModeIntent` | `String` | Toggles Autonomous Roaming, Soccer, Laser Tracking, or Theremin modes |
 | `SetDuckLightIntent` | `String` | Sets the RGB face light color or turns it off |
 
 ## App Skills (`Skills.skillsbundle`)
@@ -28,8 +31,9 @@ All 11 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` 
 
 - **`navigate-and-walk`** — Stands Microduck up before walking, splits compound paths using full-speed turn timing (~1 s ≈ 90°, ~2.1 s ≈ 180°), and pivots cleanly on obstacle stops.
 - **`inspect-surroundings`** — Aims gaze or turns around before snapping photos, and pans left → center → right for room scans.
-- **`expressive-choreography`** — Chooses `PerformDuckRoutineIntent` for open-ended moods and skits versus single-action tools for direct commands.
-- **`autonomous-play-modes`** — Ensures Microduck is standing before enabling Autonomous, Soccer, or Laser Tracking modes and turns them off before manual driving.
+- **`expressive-choreography`** — Uses `ControlDuckBeakIntent` for direct beak commands and `PerformDuckRoutineIntent` (with beak, head tilt, and crouch parameters) for open-ended moods and skits.
+- **`autonomous-play-modes`** — Ensures Microduck is standing before enabling Autonomous, Soccer, Laser Tracking, or Theremin modes and turns them off before manual driving.
+- **`explore-apartment`** — Checks proximity with `GetDuckProximityIntent`, runs bounded `ExploreApartmentIntent` sweeps, and inspects discovered obstacles or playground props.
 
 ### Example Prompts
 
