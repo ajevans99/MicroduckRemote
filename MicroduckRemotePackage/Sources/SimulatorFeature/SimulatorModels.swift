@@ -197,12 +197,17 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
     self.autoConnectCockpit = autoConnectCockpit
   }
 
+  public static func managedReposRoot(home: String = NSHomeDirectory()) -> String {
+    "\(home)/Library/Application Support/MicroduckRemote/Repos"
+  }
+
   public static func defaultMicroduckRepoPath(home: String = NSHomeDirectory()) -> String {
     let candidates = [
       "\(home)/Documents/microduck",
       "\(home)/Pollen/microduck",
       "\(home)/Code/microduck",
       "\(home)/Developer/microduck",
+      "\(managedReposRoot(home: home))/microduck",
     ]
     for path in candidates where FileManager.default.isExecutableFile(atPath: "\(path)/scripts/duck-sim") {
       return path
@@ -216,6 +221,7 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
       "\(home)/Documents/microduck_rl",
       "\(home)/Code/microduck_rl",
       "\(home)/Developer/microduck_rl",
+      "\(managedReposRoot(home: home))/microduck_rl",
     ]
     for path in candidates where FileManager.default.fileExists(atPath: path) {
       return path
@@ -309,6 +315,48 @@ public struct SimulatorConfiguration: Codable, Equatable, Sendable {
     }
     parts.append("./scripts/duck-sim")
     return parts.joined(separator: " ")
+  }
+}
+
+public struct SimulatorEnvironmentStatus: Equatable, Sendable {
+  public var hasGit: Bool
+  public var hasCargo: Bool
+  public var hasUv: Bool
+  public var hasMicroduckRepo: Bool
+  public var hasMicroduckRLRepo: Bool
+
+  public init(
+    hasGit: Bool = true,
+    hasCargo: Bool = true,
+    hasUv: Bool = true,
+    hasMicroduckRepo: Bool = true,
+    hasMicroduckRLRepo: Bool = true
+  ) {
+    self.hasGit = hasGit
+    self.hasCargo = hasCargo
+    self.hasUv = hasUv
+    self.hasMicroduckRepo = hasMicroduckRepo
+    self.hasMicroduckRLRepo = hasMicroduckRLRepo
+  }
+
+  public var isReadyToLaunch: Bool {
+    hasMicroduckRepo && hasMicroduckRLRepo && hasCargo && hasUv
+  }
+
+  public var needsRepoClone: Bool {
+    !hasMicroduckRepo || !hasMicroduckRLRepo
+  }
+
+  public var missingToolchainCommand: String? {
+    var packages: [String] = []
+    if !hasCargo { packages.append("rustup") }
+    if !hasUv { packages.append("uv") }
+    guard !packages.isEmpty else { return nil }
+    var cmd = "brew install \(packages.joined(separator: " "))"
+    if !hasCargo {
+      cmd += " && rustup-init -y"
+    }
+    return cmd
   }
 }
 

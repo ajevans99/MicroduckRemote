@@ -8,6 +8,7 @@ import WingmanFeature
 public struct CockpitView: View {
   @Bindable var model: CockpitModel
   @Environment(\.duckVideoRenderer) private var duckVideoRenderer
+  @State private var showControllerLegend = false
 
   public init(model: CockpitModel) {
     self.model = model
@@ -461,12 +462,25 @@ public struct CockpitView: View {
       HStack(alignment: .top, spacing: 8) {
         safetyBadge
         if model.gamepadState.isConnected, let name = model.gamepadState.controllerName {
-          Label(name, systemImage: "gamecontroller.fill")
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.ultraThinMaterial, in: Capsule())
+          Button {
+            showControllerLegend.toggle()
+          } label: {
+            Label(name, systemImage: "gamecontroller.fill")
+              .font(.caption2.weight(.medium))
+              .foregroundStyle(.white)
+              .padding(.horizontal, 8)
+              .padding(.vertical, 4)
+              .background(.black.opacity(0.45), in: Capsule())
+              .overlay(Capsule().strokeBorder(.green.opacity(0.55), lineWidth: 1))
+          }
+          .buttonStyle(.plain)
+          .popover(isPresented: $showControllerLegend) {
+            ControllerMappingPopover(
+              controllerName: name,
+              family: model.gamepadState.family
+            )
+          }
+          .help("Show controller button mapping")
         }
         Spacer(minLength: 4)
         HStack(spacing: 6) {

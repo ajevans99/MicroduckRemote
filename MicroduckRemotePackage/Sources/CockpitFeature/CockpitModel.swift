@@ -75,13 +75,16 @@ public final class CockpitModel {
   }
 
   public var currentTwist: RobotMoveParams {
+    let lookingWithPad = gamepadState.leftShoulderPressed
     let padActive = abs(gamepadState.leftX) > 0.04
       || abs(gamepadState.leftY) > 0.04
-      || abs(gamepadState.rightX) > 0.04
+      || (!lookingWithPad && abs(gamepadState.rightX) > 0.04)
 
     let vxInput = padActive ? gamepadState.leftY : -leftStickY
     let vyInput = padActive ? -gamepadState.leftX : -leftStickX
-    let vyawInput = padActive ? -gamepadState.rightX : -rightStickX
+    let vyawInput = padActive
+      ? (lookingWithPad ? 0.0 : -gamepadState.rightX)
+      : -rightStickX
 
     let vx = vxInput >= 0
       ? vxInput * DuckConstants.maxLinearVelocity
@@ -158,11 +161,72 @@ public final class CockpitModel {
 
   private func observeGamepad() async {
     for await pad in gamepad.states() {
-      let wasMoving = isMoving
-      gamepadState = pad
-      if wasMoving, !isMoving {
-        await duckSession.sendMove(.zero)
+      await handleGamepadState(pad)
+    }
+  }
+
+  public func handleGamepadState(_ pad: GamepadInputState) async {
+    let previous = gamepadState
+    let wasMoving = isMoving
+    gamepadState = pad
+
+    if wasMoving, !isMoving, snapshot.controlOpen {
+      await duckSession.sendMove(.zero)
+    }
+
+    guard snapshot.controlOpen else { return }
+
+    // Face buttons (rising edge)
+    if pad.buttonAPressed, !previous.buttonAPressed {
+      if isFallen {
+        await standBackUpButtonTapped()
+      } else {
+        await standToggleButtonTapped()
       }
+    }
+    if pad.buttonBPressed, !previous.buttonBPressed {
+      await stopButtonTapped()
+    }
+    if pad.buttonXPressed, !previous.buttonXPressed {
+      await quickSkillButtonTapped("kick_left")
+    }
+    if pad.buttonYPressed, !previous.buttonYPressed {
+      await quickSkillButtonTapped("kick_right")
+    }
+    if pad.rightShoulderPressed, !previous.rightShoulderPressed {
+      await quickSkillButtonTapped("roulade")
+    }
+    if pad.buttonMenuPressed, !previous.buttonMenuPressed {
+      await flashlightToggleTapped()
+    }
+
+    // D-pad sounds & holdable Wheee
+    if pad.dpadUp, !previous.dpadUp {
+      await soundButtonTapped(.greet)
+    }
+    if pad.dpadRight, !previous.dpadRight {
+      await soundButtonTapped(.chirp)
+    }
+    if pad.dpadDown, !previous.dpadDown {
+      await soundButtonTapped(.inquire)
+    }
+    if pad.dpadLeft != previous.dpadLeft {
+      await wheeeHoldChanged(isPressed: pad.dpadLeft)
+    }
+
+    // Analog triggers: RT/R2 -> beak opening, LT/L2 -> crouch depth
+    if abs(pad.rightTrigger - previous.rightTrigger) > 0.03 {
+      await beakOpeningChanged(pad.rightTrigger)
+    }
+    if abs(pad.leftTrigger - previous.leftTrigger) > 0.03, isEnabled, !isSitting {
+      await crouchDepthChanged(pad.leftTrigger)
+    }
+
+    // LB/L1 + Right Stick -> free 2D head gaze
+    if pad.leftShoulderPressed {
+      await videoStageDragged(normalizedX: pad.rightX, normalizedY: -pad.rightY)
+    } else if previous.leftShoulderPressed {
+      videoStageDragEnded()
     }
   }
 

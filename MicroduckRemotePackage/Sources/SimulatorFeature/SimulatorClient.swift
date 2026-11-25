@@ -218,6 +218,11 @@ public enum SimulatorSceneScanner {
 public struct SimulatorClient: Sendable {
   public var loadConfiguration: @Sendable () -> SimulatorConfiguration
   public var saveConfiguration: @Sendable (SimulatorConfiguration) -> Void
+  public var checkEnvironment: @Sendable (SimulatorConfiguration) async -> SimulatorEnvironmentStatus
+  public var setupSimulatorRepos: @Sendable (
+    SimulatorConfiguration,
+    @escaping @Sendable (String, Bool) -> Void
+  ) async throws -> SimulatorConfiguration
   public var probeStatus: @Sendable (SimulatorConfiguration) async -> SimulatorRuntimeStatus
   public var discoverBuiltInScenes: @Sendable (SimulatorConfiguration) async -> [SimulatorScene]
   public var discoverSyncedScenes: @Sendable (SimulatorConfiguration) async -> SyncedScenesSnapshot
@@ -239,6 +244,13 @@ public struct SimulatorClient: Sendable {
   public init(
     loadConfiguration: @escaping @Sendable () -> SimulatorConfiguration,
     saveConfiguration: @escaping @Sendable (SimulatorConfiguration) -> Void,
+    checkEnvironment: @escaping @Sendable (SimulatorConfiguration) async -> SimulatorEnvironmentStatus = { _ in
+      SimulatorEnvironmentStatus()
+    },
+    setupSimulatorRepos: @escaping @Sendable (
+      SimulatorConfiguration,
+      @escaping @Sendable (String, Bool) -> Void
+    ) async throws -> SimulatorConfiguration = { config, _ in config },
     probeStatus: @escaping @Sendable (SimulatorConfiguration) async -> SimulatorRuntimeStatus,
     discoverBuiltInScenes: @escaping @Sendable (SimulatorConfiguration) async -> [SimulatorScene],
     discoverSyncedScenes: @escaping @Sendable (SimulatorConfiguration) async -> SyncedScenesSnapshot,
@@ -259,6 +271,8 @@ public struct SimulatorClient: Sendable {
   ) {
     self.loadConfiguration = loadConfiguration
     self.saveConfiguration = saveConfiguration
+    self.checkEnvironment = checkEnvironment
+    self.setupSimulatorRepos = setupSimulatorRepos
     self.probeStatus = probeStatus
     self.discoverBuiltInScenes = discoverBuiltInScenes
     self.discoverSyncedScenes = discoverSyncedScenes
@@ -308,6 +322,14 @@ extension SimulatorClient: DependencyKey {
         if let data = try? JSONEncoder().encode(config) {
           UserDefaults.standard.set(data, forKey: configDefaultsKey)
         }
+      },
+      checkEnvironment: { config in
+        await Task.detached(priority: .utility) {
+          LiveSimulatorRuntime.checkEnvironment(config: config)
+        }.value
+      },
+      setupSimulatorRepos: { config, onOutput in
+        try await LiveSimulatorRuntime.setupSimulatorRepos(config: config, onOutput: onOutput)
       },
       probeStatus: { config in
         await Task.detached(priority: .utility) {
@@ -487,6 +509,122 @@ extension DependencyValues {
 }
 
 private enum LiveSimulatorRuntime {
+  static func checkEnvironment(config: SimulatorConfiguration) -> SimulatorEnvironmentStatus {
+    let fm = FileManager.default
+    let enriched = SimulatorConfiguration.enrichedPATH(
+      existing: ProcessInfo.processInfo.environment["PATH"],
+      home: NSHomeDirectory()
+    )
+    let searchDirs = enriched.split(separator: ":").map(String.init)
+    func hasExecutable(_ name: String) -> Bool {
+      searchDirs.contains { dir in
+        fm.isExecutableFile(atPath: "\(dir)/\(name)")
+      }
+    }
+
+    return SimulatorEnvironmentStatus(
+      hasGit: hasExecutable("git"),
+      hasCargo: hasExecutable("cargo"),
+      hasUv: hasExecutable("uv"),
+      hasMicroduckRepo: fm.isExecutableFile(atPath: config.duckSimScriptURL.path),
+      hasMicroduckRLRepo: fm.fileExists(atPath: config.robotScenesDirectoryURL.path)
+    )
+  }
+
+  static func setupSimulatorRepos(
+    config: SimulatorConfiguration,
+    onOutput: @escaping @Sendable (String, Bool) -> Void
+  ) async throws -> SimulatorConfiguration {
+    #if os(macOS)
+    let fm = FileManager.default
+    let reposRoot = URL(fileURLWithPath: SimulatorConfiguration.managedReposRoot(), isDirectory: true)
+    try fm.createDirectory(at: reposRoot, withIntermediateDirectories: true)
+
+    var updated = config
+
+    if !fm.isExecutableFile(atPath: updated.duckSimScriptURL.path) {
+      let targetDir = reposRoot.appendingPathComponent("microduck", isDirectory: true)
+      if !fm.isExecutableFile(atPath: targetDir.appendingPathComponent("scripts/duck-sim").path) {
+        onOutput("Cloning pollen-robotics/microduck into \(targetDir.path)…", false)
+        try await runCommand(
+          executable: "/usr/bin/git",
+          arguments: ["clone", "--depth", "1", "https://github.com/pollen-robotics/microduck.git", targetDir.path],
+          onOutput: onOutput
+        )
+      }
+      updated.microduckRepoPath = targetDir.path
+    }
+
+    if !fm.fileExists(atPath: updated.robotScenesDirectoryURL.path) {
+      let targetDir = reposRoot.appendingPathComponent("microduck_rl", isDirectory: true)
+      if !fm.fileExists(atPath: targetDir.appendingPathComponent("src/mjlab_microduck/robot/microduck").path) {
+        onOutput("Cloning pollen-robotics/microduck_rl into \(targetDir.path)…", false)
+        try await runCommand(
+          executable: "/usr/bin/git",
+          arguments: ["clone", "--depth", "1", "https://github.com/pollen-robotics/microduck_rl.git", targetDir.path],
+          onOutput: onOutput
+        )
+      }
+      updated.microduckRLRepoPath = targetDir.path
+    }
+
+    onOutput("Simulator repositories ready.", false)
+    return updated
+    #else
+    return config
+    #endif
+  }
+
+  #if os(macOS)
+  private static func runCommand(
+    executable: String,
+    arguments: [String],
+    onOutput: @escaping @Sendable (String, Bool) -> Void
+  ) async throws {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: executable)
+      process.arguments = arguments
+      var env = ProcessInfo.processInfo.environment
+      env["PATH"] = SimulatorConfiguration.enrichedPATH(existing: env["PATH"], home: NSHomeDirectory())
+      process.environment = env
+
+      let pipe = Pipe()
+      process.standardOutput = pipe
+      process.standardError = pipe
+      pipe.fileHandleForReading.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty else { return }
+        let chunk = SimulatorSceneScanner.stripANSI(String(decoding: data, as: UTF8.self))
+        for line in chunk.split(whereSeparator: \.isNewline) {
+          onOutput(String(line), false)
+        }
+      }
+
+      process.terminationHandler = { proc in
+        pipe.fileHandleForReading.readabilityHandler = nil
+        if proc.terminationStatus == 0 {
+          continuation.resume()
+        } else {
+          continuation.resume(
+            throwing: SimulatorError.commandFailed(
+              proc.terminationStatus,
+              "Repository setup command failed with exit code \(proc.terminationStatus)."
+            )
+          )
+        }
+      }
+
+      do {
+        try process.run()
+      } catch {
+        pipe.fileHandleForReading.readabilityHandler = nil
+        continuation.resume(throwing: error)
+      }
+    }
+  }
+  #endif
+
   static func resolveSyncedScenesDirectory(config: SimulatorConfiguration) -> (directoryURL: URL, iCloudAvailable: Bool, detail: String) {
     let fm = FileManager.default
 

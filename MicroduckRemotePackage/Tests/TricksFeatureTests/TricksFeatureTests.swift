@@ -70,4 +70,20 @@ import TricksFeature
       expectNoDifference(model.filteredTricks.map(\.repo), ["demo-user/microduck-custom-wave"])
     }
   }
+
+  @Test func bundledSignedShortcutsResolveForBothBundleIdentifiers() throws {
+    for bundleID in ["dev.ajevans.microduckremote", "com.microduck.remote", "com.unknown.custom"] {
+      for template in BundledShortcutTemplate.gallery {
+        let url = try #require(
+          template.resolvedResourceURL(bundleIdentifier: bundleID),
+          "Missing bundled shortcut \(template.fileName) for \(bundleID)"
+        )
+        let data = try Data(contentsOf: url)
+        #expect(data.count > 1000, "Signed shortcut \(template.fileName) should be non-empty")
+
+        let importURL = try template.prepareImportableFileURL(bundleIdentifier: bundleID)
+        expectNoDifference(importURL.lastPathComponent, template.fileName)
+      }
+    }
+  }
 }

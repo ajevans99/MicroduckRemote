@@ -1,0 +1,180 @@
+name: Release macOS App
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+        type: string
+      runner:
+        description: "Runner label (use self-hosted while Xcode 27.3 is in beta)"
+        required: false
+        default: "self-hosted"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    # MicroduckRemote targets macOS 27.3 / Xcode 27.3+ (Siri AI & FoundationModels 27).
+    # While Xcode 27.3 is in beta, run on a self-hosted Apple Silicon Mac with Xcode 27.3 installed,
+    # or switch to `macos-26` / `macos-latest` once GitHub-hosted runners ship Xcode 27.3+.
+    runs-on: ${{ inputs.runner || 'self-hosted' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Select Xcode 27.3+
+        run: |
+          if [ -n "${XCODE_PATH:-}" ] && [ -d "$XCODE_PATH" ]; then
+            sudo xcode-select -s "$XCODE_PATH/Contents/Developer" || export DEVELOPER_DIR="$XCODE_PATH/Contents/Developer"
+          else
+            CANDIDATE=$(ls -d /Applications/Xcode*27*.app 2>/dev/null | sort -V | tail -n 1 || true)
+            if [ -n "$CANDIDATE" ]; then
+              echo "DEVELOPER_DIR=$CANDIDATE/Contents/Developer" >> "$GITHUB_ENV"
+            fi
+          fi
+          xcodebuild -version
+
+      - name: Import Developer ID certificate (optional)
+        id: signing
+        if: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' && secrets.DEVELOPER_ID_CERT_PASSWORD != '' }}
+        env:
+          CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ runner.temp }}-keychain-pass
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+          echo -n "$CERT_P12" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Build Microduck.app (Release, macOS)
+        run: |
+          set -euo pipefail
+          DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+          SIGN_ARGS=()
+          if [ -n "${{ steps.signing.outputs.identity }}" ]; then
+            SIGN_ARGS+=(
+              CODE_SIGN_STYLE=Manual
+              "CODE_SIGN_IDENTITY=${{ steps.signing.outputs.identity }}"
+              "DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}"
+              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime"
+            )
+          else
+            SIGN_ARGS+=(
+              CODE_SIGN_STYLE=Manual
+              "CODE_SIGN_IDENTITY=-"
+              DEVELOPMENT_TEAM=""
+            )
+          fi
+
+          xcodebuild build \
+            -workspace MicroduckRemoteWorkspace.xcworkspace \
+            -scheme MicroduckRemoteMac \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$DERIVED_DATA" \
+            "MARKETING_VERSION=${{ steps.version.outputs.version }}" \
+            "${SIGN_ARGS[@]}"
+
+          APP_PATH="$DERIVED_DATA/Build/Products/Release/Microduck.app"
+          test -d "$APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Validate Siri AI App Intents metadata
+        run: |
+          xcrun sirimetadataanalyzer "$APP_PATH"
+
+      - name: Package DMG & ZIP archives
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          DIST_DIR="$RUNNER_TEMP/dist"
+          DMG_STAGE="$RUNNER_TEMP/dmg-stage"
+          mkdir -p "$DIST_DIR" "$DMG_STAGE"
+
+          ditto "$APP_PATH" "$DMG_STAGE/Microduck.app"
+          ln -s /Applications "$DMG_STAGE/Applications"
+
+          DMG_PATH="$DIST_DIR/Microduck-${TAG}-macOS-arm64.dmg"
+          ZIP_PATH="$DIST_DIR/Microduck-${TAG}-macOS-arm64.zip"
+
+          hdiutil create \
+            -volname "Microduck ${TAG}" \
+            -srcfolder "$DMG_STAGE" \
+            -ov -format UDZO \
+            "$DMG_PATH"
+
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
+
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+          echo "ZIP_PATH=$ZIP_PATH" >> "$GITHUB_ENV"
+          echo "DIST_DIR=$DIST_DIR" >> "$GITHUB_ENV"
+
+      - name: Notarize DMG (optional)
+        if: ${{ steps.signing.outputs.identity != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+
+      - name: Compute SHA-256 checksums
+        run: |
+          cd "$DIST_DIR"
+          shasum -a 256 *.dmg *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Microduck ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            ${{ env.DMG_PATH }}
+            ${{ env.ZIP_PATH }}
+            ${{ env.DIST_DIR }}/SHA256SUMS.txt
+          body: |
+            ## Microduck for macOS (${{ steps.version.outputs.tag }})
+
+            Requires **macOS 27.3+** on Apple Silicon.
+
+            ### Install
+            1. Download **`Microduck-${{ steps.version.outputs.tag }}-macOS-arm64.dmg`**, open it, and drag **Microduck.app** to **Applications**.
+            2. *(If ad-hoc signed without Developer ID notarization)* Right-click **Microduck.app** → **Open** on first launch (or run `xattr -dr com.apple.quarantine /Applications/Microduck.app`).
+            3. **Physical Microduck:** Sign in with Hugging Face in the app — no extra tools required.
+            4. **Local MuJoCo Simulator (optional):** Open the **Simulator** tab and click **Download Simulator Repos** (requires `cargo` + `uv`: `brew install rustup uv && rustup-init -y`).
+
+      - name: Clean up temporary signing keychain
+        if: always() && steps.signing.outputs.keychain != ''
+        run: |
+          security delete-keychain "${{ steps.signing.outputs.keychain }}" || true

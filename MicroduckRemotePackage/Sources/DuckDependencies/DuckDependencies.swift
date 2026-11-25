@@ -741,28 +741,94 @@ extension HapticsClient: TestDependencyKey {
   }
 }
 
+public enum GamepadFamily: String, Equatable, Sendable {
+  case xbox
+  case playstation
+  case generic
+
+  public static func detect(vendorName: String?, productCategory: String?) -> GamepadFamily {
+    let combined = "\(vendorName ?? "") \(productCategory ?? "")".lowercased()
+    if combined.contains("xbox") || combined.contains("microsoft") {
+      return .xbox
+    }
+    if combined.contains("dualshock") || combined.contains("dualsense")
+      || combined.contains("playstation") || combined.contains("sony")
+    {
+      return .playstation
+    }
+    return .generic
+  }
+
+  public var displayLabel: String {
+    switch self {
+    case .xbox: "Xbox"
+    case .playstation: "PlayStation"
+    case .generic: "Controller"
+    }
+  }
+}
+
 public struct GamepadInputState: Equatable, Sendable {
   public var controllerName: String?
+  public var family: GamepadFamily
   public var leftX: Double
   public var leftY: Double
   public var rightX: Double
+  public var rightY: Double
+  public var leftTrigger: Double
+  public var rightTrigger: Double
   public var buttonAPressed: Bool
   public var buttonBPressed: Bool
+  public var buttonXPressed: Bool
+  public var buttonYPressed: Bool
+  public var leftShoulderPressed: Bool
+  public var rightShoulderPressed: Bool
+  public var dpadUp: Bool
+  public var dpadDown: Bool
+  public var dpadLeft: Bool
+  public var dpadRight: Bool
+  public var buttonMenuPressed: Bool
 
   public init(
     controllerName: String? = nil,
+    family: GamepadFamily = .generic,
     leftX: Double = 0,
     leftY: Double = 0,
     rightX: Double = 0,
+    rightY: Double = 0,
+    leftTrigger: Double = 0,
+    rightTrigger: Double = 0,
     buttonAPressed: Bool = false,
-    buttonBPressed: Bool = false
+    buttonBPressed: Bool = false,
+    buttonXPressed: Bool = false,
+    buttonYPressed: Bool = false,
+    leftShoulderPressed: Bool = false,
+    rightShoulderPressed: Bool = false,
+    dpadUp: Bool = false,
+    dpadDown: Bool = false,
+    dpadLeft: Bool = false,
+    dpadRight: Bool = false,
+    buttonMenuPressed: Bool = false
   ) {
     self.controllerName = controllerName
+    self.family = family
     self.leftX = leftX
     self.leftY = leftY
     self.rightX = rightX
+    self.rightY = rightY
+    self.leftTrigger = leftTrigger
+    self.rightTrigger = rightTrigger
     self.buttonAPressed = buttonAPressed
     self.buttonBPressed = buttonBPressed
+    self.buttonXPressed = buttonXPressed
+    self.buttonYPressed = buttonYPressed
+    self.leftShoulderPressed = leftShoulderPressed
+    self.rightShoulderPressed = rightShoulderPressed
+    self.dpadUp = dpadUp
+    self.dpadDown = dpadDown
+    self.dpadLeft = dpadLeft
+    self.dpadRight = dpadRight
+    self.buttonMenuPressed = buttonMenuPressed
   }
 
   public var isConnected: Bool { controllerName != nil }

@@ -234,4 +234,50 @@ import Testing
       [.localSimulator(url: DuckConstants.defaultLocalSignallingURL)]
     )
   }
+
+  @Test @MainActor func preflightDetectsMissingToolchainAndOneClickSetupUpdatesConfig() async {
+    let missingEnv = SimulatorEnvironmentStatus(
+      hasGit: true,
+      hasCargo: false,
+      hasUv: false,
+      hasMicroduckRepo: false,
+      hasMicroduckRLRepo: false
+    )
+    expectNoDifference(missingEnv.isReadyToLaunch, false)
+    expectNoDifference(missingEnv.needsRepoClone, true)
+    expectNoDifference(missingEnv.missingToolchainCommand, "brew install rustup uv && rustup-init -y")
+
+    let savedConfig = LockIsolated<SimulatorConfiguration?>(nil)
+    let envState = LockIsolated(missingEnv)
+
+    let model = withDependencies {
+      var sim = SimulatorClient.previewValue
+      sim.checkEnvironment = { _ in envState.value }
+      sim.saveConfiguration = { cfg in savedConfig.withValue { $0 = cfg } }
+      sim.setupSimulatorRepos = { config, onOutput in
+        onOutput("Cloned microduck & microduck_rl", false)
+        var updated = config
+        updated.microduckRepoPath = "/Users/tester/Library/Application Support/MicroduckRemote/Repos/microduck"
+        updated.microduckRLRepoPath = "/Users/tester/Library/Application Support/MicroduckRemote/Repos/microduck_rl"
+        envState.withValue {
+          $0.hasMicroduckRepo = true
+          $0.hasMicroduckRLRepo = true
+        }
+        return updated
+      }
+      $0.simulator = sim
+    } operation: {
+      SimulatorModel()
+    }
+
+    await model.refreshEverything()
+    expectNoDifference(model.environmentStatus.needsRepoClone, true)
+
+    await model.setupSimulatorReposButtonTapped()
+    expectNoDifference(model.environmentStatus.needsRepoClone, false)
+    expectNoDifference(
+      savedConfig.value?.microduckRepoPath,
+      "/Users/tester/Library/Application Support/MicroduckRemote/Repos/microduck"
+    )
+  }
 }

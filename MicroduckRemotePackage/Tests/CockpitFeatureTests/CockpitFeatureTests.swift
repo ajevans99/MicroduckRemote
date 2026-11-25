@@ -204,4 +204,83 @@ import Testing
       expectNoDifference(model.inlineWingmanPrompt, "")
     }
   }
+
+  @Test @MainActor func xboxAndPlayStationControllerButtonsTriggersAndGazeWorkEndToEnd() async {
+    expectNoDifference(
+      GamepadFamily.detect(vendorName: "DualSense Wireless Controller", productCategory: "DualSense"),
+      .playstation
+    )
+    expectNoDifference(
+      GamepadFamily.detect(vendorName: "Xbox Wireless Controller", productCategory: "Xbox One"),
+      .xbox
+    )
+
+    let events = LockIsolated<[String]>([])
+    await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.toggleEnable = { events.withValue { $0.append("toggleEnable") } }
+      session.stop = { events.withValue { $0.append("stop") } }
+      session.performSkill = { skill in events.withValue { $0.append("skill:\(skill)") } }
+      session.playSound = { tag, hold in events.withValue { $0.append("sound:\(tag.rawValue):\(hold.map(String.init) ?? "nil")") } }
+      session.sendMouth = { mouth in events.withValue { $0.append("mouth:\(Int((mouth.open * 100).rounded()))") } }
+      session.sendPose = { pose in events.withValue { $0.append(pose.active ? "crouch:\(Int((pose.z * -1000).rounded()))" : "crouch:0") } }
+      session.sendLook = { _ in
+        events.withValue { $0.append("look") }
+        return RobotLookResult(accepted: true, clamped: false)
+      }
+      session.setFlashlight = { on in events.withValue { $0.append("flashlight:\(on)") } }
+      $0.duckSession = session
+      $0.haptics = .previewValue
+    } operation: {
+      let model = CockpitModel()
+      model.snapshot = .previewConnected
+
+      // Press A (Stand), X (Kick Left), RB (Roulade), D-pad Right (Chirp), RT 80% (Beak), LT 50% (Crouch), Menu (Flashlight)
+      await model.handleGamepadState(
+        GamepadInputState(
+          controllerName: "DualSense Wireless Controller",
+          family: .playstation,
+          leftTrigger: 0.5,
+          rightTrigger: 0.8,
+          buttonAPressed: true,
+          buttonXPressed: true,
+          rightShoulderPressed: true,
+          dpadRight: true,
+          buttonMenuPressed: true
+        )
+      )
+
+      // Hold LB + Right Stick -> aims gaze and locks body turning (vyaw == 0)
+      await model.handleGamepadState(
+        GamepadInputState(
+          controllerName: "DualSense Wireless Controller",
+          family: .playstation,
+          rightX: 0.7,
+          rightY: 0.4,
+          leftShoulderPressed: true
+        )
+      )
+      expectNoDifference(model.currentTwist.vyaw, 0.0)
+      expectNoDifference(model.isLooking, true)
+
+      // Press B -> Emergency stop
+      await model.handleGamepadState(
+        GamepadInputState(
+          controllerName: "DualSense Wireless Controller",
+          family: .playstation,
+          buttonBPressed: true
+        )
+      )
+      expectNoDifference(model.isLooking, false)
+    }
+
+    #expect(events.value.contains("toggleEnable"))
+    #expect(events.value.contains("skill:kick_left"))
+    #expect(events.value.contains("skill:roulade"))
+    #expect(events.value.contains("sound:chirp:nil"))
+    #expect(events.value.contains("mouth:80"))
+    #expect(events.value.contains("flashlight:true"))
+    #expect(events.value.contains("look"))
+    #expect(events.value.contains("stop"))
+  }
 }

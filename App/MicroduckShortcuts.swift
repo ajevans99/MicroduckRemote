@@ -103,5 +103,15 @@ struct MicroduckShortcuts: AppShortcutsProvider {
       shortTitle: "Duck Light",
       systemImageName: "lightbulb.fill"
     )
+
+    AppShortcut(
+      intent: ExploreApartmentIntent(),
+      phrases: [
+        "Explore the room with \(.applicationName)",
+        "Have \(.applicationName) explore",
+      ],
+      shortTitle: "Explore Room",
+      systemImageName: "figure.walk.motion"
+    )
   }
 }

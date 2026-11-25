@@ -95,12 +95,16 @@ let package = Package(
       name: "TricksFeature",
       dependencies: [
         "DuckDependencies",
+        "DuckIntents",
         "DuckProtocol",
         .product(name: "CasePaths", package: "swift-case-paths"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
         .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
         .product(name: "SwiftUINavigation", package: "swift-navigation"),
+      ],
+      resources: [
+        .copy("ShortcutTemplates"),
       ]
     ),
     .target(

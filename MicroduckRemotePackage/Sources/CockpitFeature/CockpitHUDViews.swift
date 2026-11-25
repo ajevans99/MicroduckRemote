@@ -1,3 +1,4 @@
+import DuckDependencies
 import DuckProtocol
 import SwiftUI
 
@@ -262,5 +263,63 @@ public struct QuickMotionDeckView: View {
     .controlSize(.small)
     .tint(isRunning ? .orange : .primary)
     .disabled(!isEnabled || (activeLabel != nil && !isRunning))
+  }
+}
+
+/// Interactive button legend popover tailored to Xbox or PlayStation controllers.
+public struct ControllerMappingPopover: View {
+  public let controllerName: String
+  public let family: GamepadFamily
+
+  public init(controllerName: String, family: GamepadFamily) {
+    self.controllerName = controllerName
+    self.family = family
+  }
+
+  public var body: some View {
+    let isPS = family == .playstation
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 8) {
+        Image(systemName: "gamecontroller.fill")
+          .foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 1) {
+          Text(controllerName)
+            .font(.subheadline.weight(.semibold))
+          Text("\(family.displayLabel) Mapping")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      Divider()
+
+      Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
+        mappingRow("Left Stick", "Walk & Sidestep")
+        mappingRow("Right Stick X", "Turn Left / Right")
+        mappingRow(isPS ? "L1 + Right Stick" : "LB + Right Stick", "Aim Head Gaze")
+        mappingRow(isPS ? "✕ (Cross)" : "A", "Stand / Balance / Recover")
+        mappingRow(isPS ? "○ (Circle)" : "B", "Emergency Stop")
+        mappingRow(isPS ? "□ / △" : "X / Y", "Kick Left / Kick Right")
+        mappingRow(isPS ? "R1" : "RB", "Roulade Trick")
+        mappingRow(isPS ? "R2 (Analog)" : "RT (Analog)", "Beak Opening")
+        mappingRow(isPS ? "L2 (Analog)" : "LT (Analog)", "Crouch Depth")
+        mappingRow("D-Pad ↑ / → / ↓", "Greet / Chirp / Inquire")
+        mappingRow("D-Pad ← (Hold)", "Hold Wheee!")
+        mappingRow(isPS ? "Options" : "Menu", "Toggle Flashlight")
+      }
+      .font(.caption)
+    }
+    .padding(14)
+    .frame(minWidth: 270)
+  }
+
+  private func mappingRow(_ control: String, _ action: String) -> some View {
+    GridRow {
+      Text(control)
+        .fontWeight(.semibold)
+        .foregroundStyle(.primary)
+      Text(action)
+        .foregroundStyle(.secondary)
+    }
   }
 }

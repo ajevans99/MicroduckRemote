@@ -12,6 +12,8 @@ public final class SimulatorModel {
   @ObservationIgnored @Dependency(\.continuousClock) var clock
 
   public var config: SimulatorConfiguration
+  public var environmentStatus = SimulatorEnvironmentStatus()
+  public var isSettingUpRepos = false
   public var runtimeStatus = SimulatorRuntimeStatus()
   public var phase: SimulatorLifecyclePhase = .stopped
 
@@ -67,11 +69,13 @@ public final class SimulatorModel {
   }
 
   public func refreshEverything() async {
+    async let envTask = simulator.checkEnvironment(config)
     async let statusTask = simulator.probeStatus(config)
     async let builtInTask = simulator.discoverBuiltInScenes(config)
     async let syncedTask = simulator.discoverSyncedScenes(config)
 
-    let (status, builtIns, synced) = await (statusTask, builtInTask, syncedTask)
+    let (env, status, builtIns, synced) = await (envTask, statusTask, builtInTask, syncedTask)
+    environmentStatus = env
     applyRuntimeStatus(status)
     builtInScenes = builtIns
     syncedScenes = synced.scenes
@@ -118,6 +122,38 @@ public final class SimulatorModel {
   public func selectScene(_ scene: SimulatorScene) {
     config.selectedSceneSlug = scene.slug
     configurationChanged()
+  }
+
+  public func setupSimulatorReposButtonTapped() async {
+    guard !isSettingUpRepos else { return }
+    errorMessage = nil
+    statusBanner = nil
+    isSettingUpRepos = true
+    selectedLogSource = .liveOutput
+    appendLog("Downloading Microduck simulator repositories…", isError: false)
+    defer { isSettingUpRepos = false }
+
+    do {
+      let updated = try await simulator.setupSimulatorRepos(config) { [weak self] line, isError in
+        Task { @MainActor [weak self] in
+          self?.appendLog(line, isError: isError)
+        }
+      }
+      config = updated
+      simulator.saveConfiguration(updated)
+      await refreshEverything()
+      statusBanner = "Simulator repositories downloaded and configured."
+    } catch {
+      errorMessage = error.localizedDescription
+      appendLog("Setup failed: \(error.localizedDescription)", isError: true)
+    }
+  }
+
+  public func copyToolchainInstallCommandButtonTapped() {
+    if let command = environmentStatus.missingToolchainCommand {
+      simulator.copyToClipboard(command)
+      statusBanner = "Copied install command to clipboard."
+    }
   }
 
   public func launchOrRestartButtonTapped() async {

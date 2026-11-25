@@ -137,6 +137,20 @@ public struct SimulatorView: View {
     }
   }
 
+  private func preflightRow(_ label: String, installed: Bool) -> some View {
+    HStack(spacing: 6) {
+      Image(systemName: installed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+        .foregroundStyle(installed ? .green : .orange)
+        .font(.caption)
+      Text(label)
+        .font(.caption)
+      Spacer()
+      Text(installed ? "Ready" : "Missing")
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(installed ? Color.secondary : Color.orange)
+    }
+  }
+
   private var configurationForm: some View {
     Form {
       if let error = model.errorMessage {
@@ -195,6 +209,62 @@ public struct SimulatorView: View {
               .font(.caption.weight(.medium))
               .foregroundStyle(Color.accentColor)
           }
+        }
+      }
+
+      if !model.environmentStatus.isReadyToLaunch {
+        Section {
+          VStack(alignment: .leading, spacing: 10) {
+            Text("The local MuJoCo simulator requires the open-source Microduck repos plus Rust (`cargo`) and Python (`uv`). Connecting to a physical Microduck works without this.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 5) {
+              preflightRow("microduck repo (scripts/duck-sim)", installed: model.environmentStatus.hasMicroduckRepo)
+              preflightRow("microduck_rl repo (MuJoCo scenes)", installed: model.environmentStatus.hasMicroduckRLRepo)
+              preflightRow("Rust toolchain (cargo)", installed: model.environmentStatus.hasCargo)
+              preflightRow("Python runner (uv)", installed: model.environmentStatus.hasUv)
+            }
+
+            if model.environmentStatus.needsRepoClone {
+              Button {
+                Task { await model.setupSimulatorReposButtonTapped() }
+              } label: {
+                HStack(spacing: 6) {
+                  if model.isSettingUpRepos {
+                    ProgressView().controlSize(.small)
+                  } else {
+                    Image(systemName: "arrow.down.circle.fill")
+                  }
+                  Text(model.isSettingUpRepos ? "Downloading Repositories…" : "Download Simulator Repos")
+                }
+              }
+              .buttonStyle(.borderedProminent)
+              .disabled(model.isSettingUpRepos || !model.environmentStatus.hasGit)
+            }
+
+            if let installCmd = model.environmentStatus.missingToolchainCommand {
+              HStack(spacing: 8) {
+                Text(installCmd)
+                  .font(.caption2.monospaced())
+                  .textSelection(.enabled)
+                  .lineLimit(2)
+                Spacer()
+                Button {
+                  model.copyToolchainInstallCommandButtonTapped()
+                } label: {
+                  Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy install command")
+              }
+              .padding(8)
+              .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+          }
+          .padding(.vertical, 2)
+        } header: {
+          Label("Simulator Setup", systemImage: "wrench.and.screwdriver")
         }
       }
 

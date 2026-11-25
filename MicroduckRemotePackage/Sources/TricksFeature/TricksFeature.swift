@@ -10,6 +10,13 @@ import SwiftUI
 @Observable
 @MainActor
 public final class TricksModel {
+  public enum GallerySection: String, CaseIterable, Identifiable, Sendable {
+    case tricks = "Tricks"
+    case shortcuts = "Shortcuts"
+
+    public var id: String { rawValue }
+  }
+
   public enum FilterScope: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case mine = "Mine"
@@ -24,6 +31,7 @@ public final class TricksModel {
   @ObservationIgnored @Dependency(\.huggingFaceAuth) var huggingFaceAuth
   @ObservationIgnored @Dependency(\.haptics) var haptics
 
+  public var selectedSection: GallerySection = .tricks
   public var snapshot = DuckSessionSnapshot()
   public var huggingFaceSession: HuggingFaceSession?
   public var signInSheet: HuggingFaceSignInSheetModel?
@@ -263,74 +271,93 @@ public struct TricksGalleryView: View {
           }
         }
 
-        installedSkillsSection
-
-        if model.huggingFaceSession == nil {
-          Section {
-            HStack(spacing: 12) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Personal & Private Tricks")
-                  .font(.subheadline.weight(.medium))
-                Text("Sign in with Hugging Face to access your own policies.")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-              Spacer()
-              Button("Sign In") {
-                model.signInButtonTapped()
-              }
-              .buttonStyle(.borderedProminent)
-              .buttonBorderShape(.capsule)
-              .controlSize(.small)
-            }
-          }
-        } else if model.filterScope == .all, !model.myTricks.isEmpty {
-          Section("My Tricks (@\(model.huggingFaceSession?.username ?? ""))") {
-            ForEach(model.myTricks) { policy in
-              trickRow(policy)
-            }
-          }
-        }
-
         Section {
-          Picker("Scope", selection: $model.filterScope) {
-            ForEach(model.availableScopes) { scope in
-              Text(scope.rawValue).tag(scope)
+          Picker("Section", selection: $model.selectedSection) {
+            ForEach(TricksModel.GallerySection.allCases) { section in
+              Text(section.rawValue).tag(section)
             }
           }
           .pickerStyle(.segmented)
           .labelsHidden()
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+        }
 
-          if model.isLoadingCatalog, model.catalogPolicies.isEmpty {
-            HStack {
-              Spacer()
-              ProgressView("Loading tricks…")
-                .padding(.vertical, 24)
-              Spacer()
+        if model.selectedSection == .shortcuts {
+          ShortcutGalleryContent { message, isError in
+            model.statusBannerMessage = message
+            model.statusBannerIsError = isError
+          }
+        } else {
+          installedSkillsSection
+
+          if model.huggingFaceSession == nil {
+            Section {
+              HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text("Personal & Private Tricks")
+                    .font(.subheadline.weight(.medium))
+                  Text("Sign in with Hugging Face to access your own policies.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Sign In") {
+                  model.signInButtonTapped()
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+              }
             }
-          } else if let warning = model.catalogWarning, model.catalogPolicies.isEmpty {
-            ContentUnavailableView(
-              "Couldn’t Load Hub",
-              systemImage: "wifi.exclamationmark",
-              description: Text(warning)
-            )
-          } else if model.filterScope == .mine, model.filteredTricks.isEmpty {
-            ContentUnavailableView(
-              "No Personal Tricks",
-              systemImage: "sparkles",
-              description: Text("Publish an ONNX policy under @\(model.huggingFaceSession?.username ?? "you") on Hugging Face.")
-            )
-          } else if model.filteredTricks.isEmpty {
-            ContentUnavailableView.search(text: model.searchQuery)
-          } else {
-            ForEach(model.filteredTricks) { policy in
-              trickRow(policy)
+          } else if model.filterScope == .all, !model.myTricks.isEmpty {
+            Section("My Tricks (@\(model.huggingFaceSession?.username ?? ""))") {
+              ForEach(model.myTricks) { policy in
+                trickRow(policy)
+              }
             }
           }
-        } header: {
-          Text("Discover")
+
+          Section {
+            Picker("Scope", selection: $model.filterScope) {
+              ForEach(model.availableScopes) { scope in
+                Text(scope.rawValue).tag(scope)
+              }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+            if model.isLoadingCatalog, model.catalogPolicies.isEmpty {
+              HStack {
+                Spacer()
+                ProgressView("Loading tricks…")
+                  .padding(.vertical, 24)
+                Spacer()
+              }
+            } else if let warning = model.catalogWarning, model.catalogPolicies.isEmpty {
+              ContentUnavailableView(
+                "Couldn’t Load Hub",
+                systemImage: "wifi.exclamationmark",
+                description: Text(warning)
+              )
+            } else if model.filterScope == .mine, model.filteredTricks.isEmpty {
+              ContentUnavailableView(
+                "No Personal Tricks",
+                systemImage: "sparkles",
+                description: Text("Publish an ONNX policy under @\(model.huggingFaceSession?.username ?? "you") on Hugging Face.")
+              )
+            } else if model.filteredTricks.isEmpty {
+              ContentUnavailableView.search(text: model.searchQuery)
+            } else {
+              ForEach(model.filteredTricks) { policy in
+                trickRow(policy)
+              }
+            }
+          } header: {
+            Text("Discover")
+          }
         }
       }
       #if canImport(UIKit)

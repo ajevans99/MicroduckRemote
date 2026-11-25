@@ -482,21 +482,43 @@ extension GamepadClient: DependencyKey {
   public static var liveValue: GamepadClient {
     GamepadClient {
       AsyncStream { continuation in
+        let deadzone: @Sendable (Float, Double) -> Double = { raw, threshold in
+          let value = Double(raw)
+          return abs(value) < threshold ? 0.0 : value
+        }
+
         let emitCurrent: @Sendable () -> Void = {
-          guard let controller = GCController.controllers().first,
+          guard let controller = GCController.controllers().first(where: { $0.extendedGamepad != nil }),
             let pad = controller.extendedGamepad
           else {
             continuation.yield(GamepadInputState())
             return
           }
+          let family = GamepadFamily.detect(
+            vendorName: controller.vendorName,
+            productCategory: controller.productCategory
+          )
           continuation.yield(
             GamepadInputState(
-              controllerName: controller.vendorName ?? "Controller",
-              leftX: Double(pad.leftThumbstick.xAxis.value),
-              leftY: Double(pad.leftThumbstick.yAxis.value),
-              rightX: Double(pad.rightThumbstick.xAxis.value),
+              controllerName: controller.vendorName ?? family.displayLabel,
+              family: family,
+              leftX: deadzone(pad.leftThumbstick.xAxis.value, 0.08),
+              leftY: deadzone(pad.leftThumbstick.yAxis.value, 0.08),
+              rightX: deadzone(pad.rightThumbstick.xAxis.value, 0.08),
+              rightY: deadzone(pad.rightThumbstick.yAxis.value, 0.08),
+              leftTrigger: deadzone(pad.leftTrigger.value, 0.05),
+              rightTrigger: deadzone(pad.rightTrigger.value, 0.05),
               buttonAPressed: pad.buttonA.isPressed,
-              buttonBPressed: pad.buttonB.isPressed
+              buttonBPressed: pad.buttonB.isPressed,
+              buttonXPressed: pad.buttonX.isPressed,
+              buttonYPressed: pad.buttonY.isPressed,
+              leftShoulderPressed: pad.leftShoulder.isPressed,
+              rightShoulderPressed: pad.rightShoulder.isPressed,
+              dpadUp: pad.dpad.up.isPressed,
+              dpadDown: pad.dpad.down.isPressed,
+              dpadLeft: pad.dpad.left.isPressed,
+              dpadRight: pad.dpad.right.isPressed,
+              buttonMenuPressed: pad.buttonMenu.isPressed
             )
           )
         }
@@ -507,6 +529,8 @@ extension GamepadClient: DependencyKey {
           }
           emitCurrent()
         }
+
+        GCController.startWirelessControllerDiscovery(completionHandler: nil)
 
         for controller in GCController.controllers() {
           wireController(controller)
@@ -532,6 +556,7 @@ extension GamepadClient: DependencyKey {
 
         continuation.onTermination = { _ in
           watchTask.cancel()
+          GCController.stopWirelessControllerDiscovery()
         }
       }
     }
