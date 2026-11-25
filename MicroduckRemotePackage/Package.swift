@@ -19,6 +19,7 @@ let package = Package(
     .library(name: "SimulatorFeature", targets: ["SimulatorFeature"]),
     .library(name: "TelemetryFeature", targets: ["TelemetryFeature"]),
     .library(name: "TricksFeature", targets: ["TricksFeature"]),
+    .library(name: "WingmanFeature", targets: ["WingmanFeature"]),
   ],
   dependencies: [
     .package(url: "https://github.com/stasel/WebRTC", from: "158.0.0"),
@@ -67,10 +68,22 @@ let package = Package(
       ]
     ),
     .target(
+      name: "WingmanFeature",
+      dependencies: [
+        "DuckDependencies",
+        "DuckProtocol",
+        .product(name: "CasePaths", package: "swift-case-paths"),
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
+        .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
+      ]
+    ),
+    .target(
       name: "CockpitFeature",
       dependencies: [
         "DuckDependencies",
         "DuckProtocol",
+        "WingmanFeature",
         .product(name: "CasePaths", package: "swift-case-paths"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "IdentifiedCollections", package: "swift-identified-collections"),
@@ -191,6 +204,14 @@ let package = Package(
       name: "SimulatorFeatureTests",
       dependencies: [
         "SimulatorFeature",
+        .product(name: "CustomDump", package: "swift-custom-dump"),
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
+      ]
+    ),
+    .testTarget(
+      name: "WingmanFeatureTests",
+      dependencies: [
+        "WingmanFeature",
         .product(name: "CustomDump", package: "swift-custom-dump"),
         .product(name: "DependenciesTestSupport", package: "swift-dependencies"),
       ]

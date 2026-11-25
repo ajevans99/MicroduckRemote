@@ -16,8 +16,8 @@
 
 ## Highlights
 
-- **Live Cockpit (iOS & macOS):** 30 fps H.264 Metal camera feed, dual thumbsticks & gamepad driving, head gaze, expressive beak/head-tilt/crouch drawer, soundboard, posture/mode controls (including Theremin), and 8×8 ToF depth overlay.
-- **Siri AI & App Intents:** 14 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks for multi-step orchestration, interactive `CardSnippet` status & proximity cards, `@AppEntity(.generable)` choreographed routines, bounded ToF apartment exploration, `Transferable` camera photos, and live Siri call telemetry.
+- **Live Cockpit (iOS & macOS):** 30 fps H.264 Metal camera feed, dual thumbsticks & gamepad driving, head gaze, expressive beak/head-tilt/crouch drawer, **Wingman** in-app `FoundationModels` agent & streaming mission planner (with On-Device / Private Cloud Compute + live camera vision), soundboard, posture/mode controls (including Theremin), and 8×8 ToF depth overlay.
+- **Siri AI & App Intents:** 17 `@AppIntent(.tool)` tools (including closed-loop odometry distance, exact degree turns, and ToF clearance approach/backup), 5 `Skills.skillsbundle` playbooks for multi-step orchestration, interactive `CardSnippet` status & proximity cards, `@AppEntity(.generable)` choreographed routines, bounded ToF apartment exploration, `Transferable` camera photos, and live Siri call telemetry.
 - **Hugging Face Tricks Gallery:** Browse, download, install, and trigger official and community Microduck policies directly from the Hub.
 - **LiDAR Room Scan → MuJoCo:** Scan single or multi-room spaces on iPhone/iPad with Apple RoomPlan, optionally populate collision-free interactive playground props (soccer ball, cones, blocks), and sync ready-to-run MuJoCo XML scenes to macOS via iCloud Drive.
 - **macOS Simulator Launcher:** Start, restart, and inspect `scripts/duck-sim` scenes and live daemon logs natively on macOS.
@@ -49,7 +49,7 @@ Full guides ship as a DocC catalog (`MicroduckRemotePackage/Sources/AppFeature/M
 | --- | --- |
 | [Getting Started](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/GettingStarted.md) | Requirements, `Config/Local.xcconfig` signing setup, workspace layout, tests, and `sirimetadataanalyzer` |
 | [Simulator & Remote Driving](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/SimulatorAndLocalDriving.md) | Launching `scripts/duck-sim` on macOS, Hugging Face Rendezvous + TURN remote login, keyboard shortcuts |
-| [Siri AI & App Intents](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/SiriAIAndAppIntents.md) | All 14 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks, `CardSnippet` entities, Telemetry, and `SiriEvaluations` |
+| [Siri AI & App Intents](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/SiriAIAndAppIntents.md) | All 17 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks, `CardSnippet` entities, Telemetry, and `SiriEvaluations` |
 | [LiDAR Room Scanning](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/LiDARRoomScanning.md) | RoomPlan single/multi-room capture, doorway & collision tuning, and iCloud Drive sync to MuJoCo |
 | [Architecture](MicroduckRemotePackage/Sources/AppFeature/MicroduckRemote.docc/Architecture.md) | Modular Swift Package targets, cold-start WebRTC lifecycle, 10 Hz deadman/ToF guard, and backward velocity mapping |
 

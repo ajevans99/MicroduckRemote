@@ -1,18 +1,21 @@
 # Siri AI & App Intents
 
-Control Microduck conversationally across Siri AI, Shortcuts, Spotlight, and the Action Button using 14 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks, and interactive `CardSnippet` cards.
+Control Microduck conversationally across Siri AI, Shortcuts, Spotlight, and the Action Button using 17 `@AppIntent(.tool)` tools, 5 `Skills.skillsbundle` playbooks, and interactive `CardSnippet` cards.
 
 @Image(source: "siri-ai-card", alt: "Siri AI multi-step command and interactive Duck Status CardSnippet")
 
 ## Tool Intents
 
-All 14 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` and `LiveActivityIntent` (running in-process so they share the single-consumer WebRTC slot), and return structured values (`ReturnsValue`) so Siri AI can chain multi-step requests naturally.
+All 17 intents live in the `DuckIntents` target, conform to `@AppIntent(.tool)` and `LiveActivityIntent` (running in-process so they share the single-consumer WebRTC slot), and return structured values (`ReturnsValue`) so Siri AI can chain multi-step requests naturally.
 
 | Intent | Return Value | Description |
 | --- | --- | --- |
 | `EmergencyStopDuckIntent` | `String` | Immediately zeroes velocity and halts active skills |
 | `SetDuckPostureIntent` | `DuckStatusEntity` | Idempotent Stand Up (waits for rise), Sit Down (waits for 2.2 s settle), Fall Recovery, and Home Pose |
-| `MoveDuckStepIntent` | `String` | Bounded 10 Hz walk, sidestep, or in-place turn with upright safety and 8×8 ToF obstacle stop |
+| `WalkDuckDistanceIntent` | `String` | Closed-loop odometry walk or sidestep in meters (0.1–3.0 m) with proportional braking and ToF obstacle stop |
+| `TurnDuckAngleIntent` | `String` | Closed-loop in-place turn by exact degrees (15–360°) using odometry/IMU heading feedback |
+| `ApproachWithDuckIntent` | `String` | Closed-loop 8×8 ToF approach to a target obstacle clearance or back-up until clear (15–150 cm) |
+| `MoveDuckStepIntent` | `String` | Bounded 10 Hz timed walk, sidestep, or turn (0.2–5.0 s) with upright safety and 8×8 ToF obstacle stop |
 | `GetDuckStatusIntent` | `DuckStatusEntity` | Live telemetry snapshot with interactive `CardSnippet` (**Sit** / **Stand Up** / **Stop**) |
 | `GetDuckProximityIntent` | `DuckProximityEntity` | Analyzes the 8×8 ToF grid into left/front/right clearances and low-object hints with a `CardSnippet` |
 | `ExploreApartmentIntent` | `String` | Bounded, cancellation-safe closed-loop apartment wander, obstacle avoidance, and prop inspection |

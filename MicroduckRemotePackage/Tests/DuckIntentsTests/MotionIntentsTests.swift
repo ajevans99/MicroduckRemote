@@ -278,4 +278,70 @@ import Testing
 
     expectNoDifference(events.value, ["refreshSkills", "performMoveStep"])
   }
+
+  @Test func closedLoopMotionIntentsDispatchDistanceAngleAndClearanceGoals() async throws {
+    let recordedGoals = LockIsolated<[DuckMotionGoal]>([])
+
+    try await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.performMotion = { goal in
+        recordedGoals.withValue { $0.append(goal) }
+        switch goal {
+        case let .moveDistance(_, meters, _, _, _, _):
+          return DuckMotionResult(
+            goal: goal,
+            stopReason: .reachedTarget,
+            elapsedSeconds: 2.0,
+            distanceTraveledMeters: meters
+          )
+        case let .turnAngle(degrees, _, _):
+          return DuckMotionResult(
+            goal: goal,
+            stopReason: .reachedTarget,
+            elapsedSeconds: 1.0,
+            angleTurnedDegrees: degrees
+          )
+        case let .approachObstacle(targetMm, _, _), let .backUpUntilClear(targetMm, _, _):
+          return DuckMotionResult(
+            goal: goal,
+            stopReason: .reachedTarget,
+            elapsedSeconds: 1.2,
+            finalFrontClearanceMm: targetMm
+          )
+        }
+      }
+      $0.duckSession = session
+    } operation: {
+      let walkRes = try await WalkDuckDistanceIntent(
+        direction: .forward,
+        distanceMeters: 0.75,
+        speedPercent: 70,
+        stopOnObstacle: true
+      ).perform()
+      #expect(walkRes.value?.contains("0.75 m") == true)
+
+      let turnRes = try await TurnDuckAngleIntent(
+        direction: .right,
+        angleDegrees: 90,
+        speedPercent: 80
+      ).perform()
+      #expect(turnRes.value?.contains("right 90°") == true)
+
+      let approachRes = try await ApproachWithDuckIntent(
+        mode: .approach,
+        targetClearanceCm: 35,
+        speedPercent: 55
+      ).perform()
+      #expect(approachRes.value?.contains("35 cm") == true)
+    }
+
+    expectNoDifference(
+      recordedGoals.value,
+      [
+        .moveDistance(direction: .forward, meters: 0.75, speedPercent: 70, stopOnObstacle: true),
+        .turnAngle(degrees: -90, speedPercent: 80),
+        .approachObstacle(targetClearanceMm: 350, speedPercent: 55),
+      ]
+    )
+  }
 }

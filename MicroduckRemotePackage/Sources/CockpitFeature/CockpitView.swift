@@ -3,6 +3,7 @@ import DuckDependencies
 import DuckProtocol
 import SwiftUI
 import SwiftUINavigation
+import WingmanFeature
 
 public struct CockpitView: View {
   @Bindable var model: CockpitModel
@@ -15,35 +16,65 @@ public struct CockpitView: View {
   public var body: some View {
     GeometryReader { proxy in
       let isCompactLandscape = proxy.size.width > proxy.size.height && proxy.size.height < 520
+      let isWideFlightDeck = proxy.size.width >= 820 && !isCompactLandscape
       if isCompactLandscape {
         landscapeCockpit(size: proxy.size)
           .background(.black)
       } else {
         NavigationStack {
-          portraitCockpit(size: proxy.size)
-            #if canImport(UIKit)
-            .background(Color(.systemGroupedBackground))
-            .navigationBarTitleDisplayMode(.inline)
+          Group {
+            if isWideFlightDeck {
+              wideFlightDeck(size: proxy.size)
+            } else {
+              portraitCockpit(size: proxy.size)
+            }
+          }
+          #if canImport(UIKit)
+          .background(Color(.systemGroupedBackground))
+          .navigationBarTitleDisplayMode(.inline)
+          #endif
+          .toolbar {
+            #if os(macOS)
+            ToolbarItem(placement: .navigation) {
+              connectionToolbarButton
+            }
+            #else
+            ToolbarItem(placement: .principal) {
+              connectionToolbarButton
+            }
             #endif
-            .toolbar {
-              #if os(macOS)
-              ToolbarItem(placement: .navigation) {
-                connectionToolbarButton
-              }
-              #else
-              ToolbarItem(placement: .principal) {
-                connectionToolbarButton
-              }
-              #endif
-              ToolbarItem(placement: .primaryAction) {
-                modesMenu
+            if isWideFlightDeck {
+              ToolbarItem(placement: .automatic) {
+                Button {
+                  withAnimation(.snappy(duration: 0.22)) {
+                    model.wingmanButtonTapped(isWideLayout: true)
+                  }
+                } label: {
+                  Label("Wingman", systemImage: "sidebar.right")
+                }
+                .tint(model.showWingmanInspector ? .accentColor : .primary)
+                .help("Toggle Wingman Side Panel")
               }
             }
+            ToolbarItem(placement: .primaryAction) {
+              modesMenu
+            }
+          }
         }
       }
     }
     .task {
       await model.task()
+    }
+    .sheet(isPresented: $model.showWingmanSheet) {
+      WingmanView(model: model.wingmanModel, isEmbedded: false)
+        #if os(iOS)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        #elseif os(macOS)
+        .frame(minWidth: 440, minHeight: 560)
+        #endif
     }
     .alert(item: $model.alert) { destination in
       switch destination {
@@ -66,13 +97,118 @@ public struct CockpitView: View {
     }
   }
 
+  private func wideFlightDeck(size: CGSize) -> some View {
+    HStack(spacing: 0) {
+      ScrollView(showsIndicators: false) {
+        VStack(spacing: 14) {
+          wideCameraStage(availableHeight: size.height)
+
+          postureAndSoundsRow(isWide: true)
+
+          QuickMotionDeckView(
+            isEnabled: model.snapshot.controlOpen && model.isEnabled && !model.isSitting && !model.isFallen,
+            activeLabel: model.activeQuickMotionLabel,
+            onAction: { label, goal in
+              model.quickMotionButtonTapped(label: label, goal: goal)
+            }
+          )
+
+          if model.showSoundDrawer {
+            soundboardStrip
+              .transition(.opacity.combined(with: .move(edge: .top)))
+          }
+
+          if model.showExpressiveDrawer {
+            expressiveDrawerCard
+              .transition(.opacity.combined(with: .move(edge: .top)))
+          }
+
+          if model.showManualPads {
+            thumbsticksDeck
+              .frame(height: 176)
+              .padding(.top, 2)
+              .transition(.opacity.combined(with: .move(edge: .top)))
+          }
+
+          quickSkillsStrip
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .frame(maxWidth: 780)
+        .frame(maxWidth: .infinity)
+      }
+
+      if model.showWingmanInspector {
+        Divider()
+        WingmanView(model: model.wingmanModel, isEmbedded: true)
+          .frame(width: min(max(size.width * 0.38, 360), 430))
+          .background(.background.secondary)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+      }
+    }
+  }
+
+  private func wideCameraStage(availableHeight: CGFloat) -> some View {
+    let stageHeight = min(max(availableHeight * 0.56, 380), 560)
+    let isPortraitCamera = model.snapshot.videoInfo.uprightAspectRatio < 0.9
+    return ZStack {
+      RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .fill(
+          LinearGradient(
+            colors: [Color(white: 0.08), Color.black],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+
+      if isPortraitCamera {
+        let feedHeight = stageHeight - 24
+        let feedWidth = min(feedHeight * CGFloat(model.snapshot.videoInfo.uprightAspectRatio), 360)
+        cameraFeedSurface(cornerRadius: 18)
+          .frame(width: feedWidth, height: feedHeight)
+          .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+          )
+          .shadow(color: .black.opacity(0.65), radius: 20, y: 8)
+      } else {
+        cameraFeedSurface(cornerRadius: 24)
+      }
+
+      cameraHUDOverlay
+    }
+    .frame(height: stageHeight)
+    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .strokeBorder(
+          isWingmanActive ? Color.accentColor.opacity(0.65) : Color.white.opacity(0.10),
+          lineWidth: isWingmanActive ? 2 : 1
+        )
+    )
+    .shadow(color: isWingmanActive ? Color.accentColor.opacity(0.22) : .clear, radius: 16)
+    .animation(.easeInOut(duration: 0.25), value: isWingmanActive)
+  }
+
+  private var isWingmanActive: Bool {
+    model.wingmanModel.isRunning || model.wingmanModel.isExecutingPlan || model.activeQuickMotionLabel != nil
+  }
+
   private func portraitCockpit(size: CGSize) -> some View {
     ScrollView(showsIndicators: false) {
-      VStack(spacing: 16) {
-        videoStageCard
-          .frame(height: min(max(size.height * 0.36, 220), 380))
+      VStack(spacing: 14) {
+        videoStageCard(cornerRadius: 22)
+          .frame(height: min(max(size.height * 0.36, 240), 400))
 
-        postureAndSoundsRow
+        postureAndSoundsRow(isWide: false)
+
+        QuickMotionDeckView(
+          isEnabled: model.snapshot.controlOpen && model.isEnabled && !model.isSitting && !model.isFallen,
+          activeLabel: model.activeQuickMotionLabel,
+          onAction: { label, goal in
+            model.quickMotionButtonTapped(label: label, goal: goal)
+          }
+        )
 
         if model.showSoundDrawer {
           soundboardStrip
@@ -87,20 +223,88 @@ public struct CockpitView: View {
         quickSkillsStrip
 
         thumbsticksDeck
-          .frame(height: 188)
-          .padding(.top, 4)
+          .frame(height: 182)
+          .padding(.top, 2)
       }
       .padding(.horizontal, 16)
       .padding(.top, 10)
-      .padding(.bottom, 24)
+      .padding(.bottom, 16)
       .frame(maxWidth: 760)
       .frame(maxWidth: .infinity)
     }
+    .safeAreaInset(edge: .bottom) {
+      compactWingmanDockBar
+    }
+  }
+
+  private var compactWingmanDockBar: some View {
+    HStack(spacing: 8) {
+      Button {
+        model.wingmanButtonTapped(isWideLayout: false)
+      } label: {
+        Image(systemName: "bird.fill")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(.tint)
+          .frame(width: 32, height: 32)
+          .background(.tint.opacity(0.15), in: Circle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Open Wingman")
+
+      TextField("Ask Wingman to move, look, or chomp…", text: $model.inlineWingmanPrompt)
+        .textFieldStyle(.plain)
+        .font(.subheadline)
+        .onSubmit {
+          model.inlineWingmanSubmitted(isWideLayout: false)
+        }
+
+      if isWingmanActive {
+        Button {
+          Task { await model.stopButtonTapped() }
+        } label: {
+          Image(systemName: "stop.fill")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 30, height: 30)
+            .background(.red, in: Circle())
+        }
+        .buttonStyle(.plain)
+      } else {
+        Button {
+          model.inlineWingmanSubmitted(isWideLayout: false)
+        } label: {
+          Image(systemName: "arrow.up")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 30, height: 30)
+            .background(
+              model.inlineWingmanPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? Color.secondary.opacity(0.35)
+                : Color.accentColor,
+              in: Circle()
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(
+          model.inlineWingmanPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !model.snapshot.controlOpen
+        )
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(.ultraThinMaterial, in: Capsule())
+    .overlay(
+      Capsule()
+        .strokeBorder(.primary.opacity(0.12), lineWidth: 1)
+    )
+    .padding(.horizontal, 16)
+    .padding(.bottom, 8)
   }
 
   private func landscapeCockpit(size: CGSize) -> some View {
     ZStack {
-      videoStageCard
+      videoStageCard(cornerRadius: 0)
         .ignoresSafeArea()
 
       VStack {
@@ -146,7 +350,7 @@ public struct CockpitView: View {
 
           Spacer()
 
-          postureAndSoundsRow
+          postureAndSoundsRow(isWide: false)
 
           Spacer()
 
@@ -213,7 +417,15 @@ public struct CockpitView: View {
     }
   }
 
-  private var videoStageCard: some View {
+  private func videoStageCard(cornerRadius: CGFloat) -> some View {
+    ZStack {
+      cameraFeedSurface(cornerRadius: cornerRadius)
+      cameraHUDOverlay
+    }
+    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+  }
+
+  private func cameraFeedSurface(cornerRadius: CGFloat) -> some View {
     GeometryReader { stageProxy in
       ZStack {
         Color.black
@@ -226,56 +438,9 @@ public struct CockpitView: View {
         if model.isLooking {
           gazeReticle(in: stageProxy.size)
         }
-
-        VStack {
-          HStack {
-            safetyBadge
-            if model.gamepadState.isConnected, let name = model.gamepadState.controllerName {
-              Label(name, systemImage: "gamecontroller.fill")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
-            }
-            Spacer()
-            Button {
-              Task { await model.tofOverlayButtonTapped() }
-            } label: {
-              Image(systemName: model.showTofOverlay ? "square.grid.3x3.fill" : "square.grid.3x3")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(.ultraThinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Toggle 8x8 Depth Overlay")
-          }
-          .padding(12)
-
-          Spacer()
-
-          HStack(alignment: .bottom) {
-            if model.showTofOverlay, let tof = model.snapshot.tofFrame {
-              TofMiniHeatmapView(frame: tof)
-                .frame(width: 88, height: 88)
-                .transition(.scale.combined(with: .opacity))
-            }
-            Spacer()
-            if !model.snapshot.controlOpen {
-              Button("Connect") {
-                model.connectionHeaderTapped()
-              }
-              .buttonStyle(.borderedProminent)
-              .buttonBorderShape(.capsule)
-              .controlSize(.small)
-            }
-          }
-          .padding(12)
-        }
       }
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-      .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+      .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
       .gesture(
         DragGesture(minimumDistance: 0)
           .onChanged { gesture in
@@ -289,6 +454,131 @@ public struct CockpitView: View {
           }
       )
     }
+  }
+
+  private var cameraHUDOverlay: some View {
+    VStack(spacing: 0) {
+      HStack(alignment: .top, spacing: 8) {
+        safetyBadge
+        if model.gamepadState.isConnected, let name = model.gamepadState.controllerName {
+          Label(name, systemImage: "gamecontroller.fill")
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+        Spacer(minLength: 4)
+        HStack(spacing: 6) {
+          if model.snapshot.latestState?.odom != nil {
+            Button {
+              withAnimation(.snappy(duration: 0.2)) {
+                model.compassHUDToggleTapped()
+              }
+            } label: {
+              Image(systemName: model.showCompassHUD ? "location.north.circle.fill" : "location.north.circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(.black.opacity(0.45), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Toggle Compass & Trail")
+          }
+
+          Button {
+            Task { await model.tofOverlayButtonTapped() }
+          } label: {
+            Image(systemName: model.showTofOverlay ? "square.grid.3x3.fill" : "square.grid.3x3")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.white)
+              .frame(width: 30, height: 30)
+              .background(.black.opacity(0.45), in: Circle())
+              .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 1))
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Toggle 8x8 Depth Overlay")
+        }
+      }
+      .padding(12)
+
+      if let liveLabel = activeOverlayLabel {
+        HStack(spacing: 7) {
+          ProgressView()
+            .controlSize(.mini)
+            .tint(.white)
+          Image(systemName: "bird.fill")
+            .font(.caption2.weight(.bold))
+          Text(liveLabel)
+            .font(.caption2.weight(.semibold))
+            .lineLimit(1)
+          Button {
+            Task { await model.stopButtonTapped() }
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .font(.caption)
+              .foregroundStyle(.white.opacity(0.9))
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Cancel Active Motion")
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.accentColor.opacity(0.88), in: Capsule())
+        .shadow(color: Color.accentColor.opacity(0.4), radius: 8)
+        .transition(.scale.combined(with: .opacity))
+      }
+
+      Spacer()
+
+      HStack(alignment: .bottom, spacing: 10) {
+        if model.showCompassHUD, let odom = model.snapshot.latestState?.odom {
+          OdometryCompassTrailHUD(
+            odom: odom,
+            trail: model.odomTrail,
+            onResetTrail: { model.resetOdomTrailTapped() }
+          )
+          .transition(.scale.combined(with: .opacity))
+        }
+
+        Spacer(minLength: 4)
+
+        VStack(alignment: .trailing, spacing: 8) {
+          if model.showTofOverlay, let tof = model.snapshot.tofFrame {
+            TofMiniHeatmapView(frame: tof)
+              .frame(width: 78, height: 78)
+              .transition(.scale.combined(with: .opacity))
+          }
+
+          if let zones = model.snapshot.tofFrame?.analyzeZones() {
+            TofProximityArcHUD(analysis: zones)
+              .transition(.scale.combined(with: .opacity))
+          }
+        }
+
+        if !model.snapshot.controlOpen {
+          Button("Connect") {
+            model.connectionHeaderTapped()
+          }
+          .buttonStyle(.borderedProminent)
+          .buttonBorderShape(.capsule)
+          .controlSize(.small)
+        }
+      }
+      .padding(12)
+    }
+  }
+
+  private var activeOverlayLabel: String? {
+    if let wingmanStatus = model.wingmanModel.activeStatusSummary {
+      return "Wingman · \(wingmanStatus)"
+    }
+    if let quickLabel = model.activeQuickMotionLabel {
+      return "Driving · \(quickLabel)"
+    }
+    return nil
   }
 
   @ViewBuilder
@@ -369,7 +659,7 @@ public struct CockpitView: View {
     }
   }
 
-  private var postureAndSoundsRow: some View {
+  private func postureAndSoundsRow(isWide: Bool) -> some View {
     HStack(spacing: 10) {
       if model.isFallen {
         Button {
@@ -445,6 +735,36 @@ public struct CockpitView: View {
       .controlSize(.large)
       .disabled(!model.snapshot.controlOpen)
       .accessibilityLabel("Expressive Controls")
+
+      if isWide {
+        Button {
+          withAnimation(.snappy(duration: 0.25)) {
+            model.manualPadsToggleTapped()
+          }
+        } label: {
+          Image(systemName: model.showManualPads ? "gamecontroller.fill" : "gamecontroller")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .tint(model.showManualPads ? .accentColor : .primary)
+        .controlSize(.large)
+        .disabled(!model.snapshot.controlOpen)
+        .accessibilityLabel("Manual Joysticks")
+      } else {
+        Button {
+          withAnimation(.snappy(duration: 0.22)) {
+            model.wingmanButtonTapped(isWideLayout: false)
+          }
+        } label: {
+          Image(systemName: "bird.fill")
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .tint(model.showWingmanSheet || isWingmanActive ? .accentColor : .primary)
+        .controlSize(.large)
+        .disabled(!model.snapshot.controlOpen)
+        .accessibilityLabel("Wingman")
+      }
     }
   }
 

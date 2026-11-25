@@ -482,6 +482,10 @@ public struct RobotHeadParams: Codable, Equatable, Sendable {
     let clampedPercent = min(max(tiltPercent, -100.0), 100.0)
     return (clampedPercent / 100.0) * DuckConstants.maxHeadRollRadians
   }
+
+  public static func tilt(percent: Double) -> RobotHeadParams {
+    RobotHeadParams(headRoll: rollRadians(tiltPercent: percent)).clamped
+  }
 }
 
 public struct RobotPoseParams: Codable, Equatable, Sendable {
@@ -906,6 +910,73 @@ public struct LoopTelemetry: Codable, Equatable, Sendable {
   }
 }
 
+public struct ImuTelemetry: Codable, Equatable, Sendable {
+  public var gyro: [Double]?
+  /// Orientation trunk → world, scalar-first `[w, x, y, z]`.
+  public var quat: [Double]?
+
+  public init(gyro: [Double]? = nil, quat: [Double]? = nil) {
+    self.gyro = gyro
+    self.quat = quat
+  }
+
+  /// Heading (yaw) extracted from the trunk → world quaternion, in radians.
+  public var yawRadians: Double? {
+    guard let quat, quat.count >= 4 else { return nil }
+    let w = quat[0]
+    let x = quat[1]
+    let y = quat[2]
+    let z = quat[3]
+    let normSq = w * w + x * x + y * y + z * z
+    guard normSq > 1e-9 else { return nil }
+    let sinyCosp = 2.0 * (w * z + x * y)
+    let cosyCosp = 1.0 - 2.0 * (y * y + z * z)
+    return atan2(sinyCosp, cosyCosp)
+  }
+}
+
+public struct OdomTelemetry: Codable, Equatable, Sendable {
+  /// Trunk position `[x, y, z]` in metres in the IMU's gravity-aligned world frame.
+  public var position: [Double]
+  /// Heading in radians.
+  public var yaw: Double
+
+  public init(position: [Double] = [0, 0, 0], yaw: Double = 0) {
+    self.position = position
+    self.yaw = yaw
+  }
+
+  public var x: Double { position.count > 0 ? position[0] : 0 }
+  public var y: Double { position.count > 1 ? position[1] : 0 }
+  public var z: Double { position.count > 2 ? position[2] : 0 }
+
+  public var yawDegrees: Double {
+    yaw * 180.0 / .pi
+  }
+
+  public func planarDistance(from other: OdomTelemetry) -> Double {
+    hypot(x - other.x, y - other.y)
+  }
+}
+
+public enum DuckGeometry {
+  /// Normalizes an angle in radians into `(-π, π]`.
+  public static func normalizedAngleRadians(_ radians: Double) -> Double {
+    var angle = radians.truncatingRemainder(dividingBy: 2.0 * .pi)
+    if angle > .pi {
+      angle -= 2.0 * .pi
+    } else if angle <= -.pi {
+      angle += 2.0 * .pi
+    }
+    return angle
+  }
+
+  /// Shortest signed angular delta `to - from` in radians within `(-π, π]`.
+  public static func angularDeltaRadians(from start: Double, to end: Double) -> Double {
+    normalizedAngleRadians(end - start)
+  }
+}
+
 public struct RobotStateFrame: Codable, Equatable, Sendable {
   public var t: Double?
   public var movement: MoveTelemetry?
@@ -915,6 +986,8 @@ public struct RobotStateFrame: Codable, Equatable, Sendable {
   public var controlLoop: LoopTelemetry?
   public var joints: [Double]?
   public var targets: [Double]?
+  public var imu: ImuTelemetry?
+  public var odom: OdomTelemetry?
 
   enum CodingKeys: String, CodingKey {
     case t
@@ -925,6 +998,8 @@ public struct RobotStateFrame: Codable, Equatable, Sendable {
     case controlLoop = "loop"
     case joints
     case targets
+    case imu
+    case odom
   }
 
   public init(
@@ -935,7 +1010,9 @@ public struct RobotStateFrame: Codable, Equatable, Sendable {
     safety: SafetyTelemetry? = nil,
     controlLoop: LoopTelemetry? = nil,
     joints: [Double]? = nil,
-    targets: [Double]? = nil
+    targets: [Double]? = nil,
+    imu: ImuTelemetry? = nil,
+    odom: OdomTelemetry? = nil
   ) {
     self.t = t
     self.movement = movement
@@ -945,6 +1022,16 @@ public struct RobotStateFrame: Codable, Equatable, Sendable {
     self.controlLoop = controlLoop
     self.joints = joints
     self.targets = targets
+    self.imu = imu
+    self.odom = odom
+  }
+
+  /// Best available yaw heading in radians, preferring contact odometry and falling back to IMU quaternion.
+  public var headingRadians: Double? {
+    if let odom, odom.yaw.isFinite {
+      return odom.yaw
+    }
+    return imu?.yawRadians
   }
 }
 

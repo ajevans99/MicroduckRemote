@@ -348,4 +348,34 @@ import Testing
     satDown.isSitting = true
     expectNoDifference(base.hasSameControlSurfaceState(as: satDown), false)
   }
+
+  @Test func robotStateFrameDecodesOdomAndImuHeadingWithAngleWrapping() throws {
+    let json = """
+    {
+      "t": 12.5,
+      "policy": "walk",
+      "odom": { "position": [0.42, -0.18, 0.116], "yaw": 1.5707963267948966 },
+      "imu": { "gyro": [0.0, 0.0, 0.2], "quat": [0.70710678, 0.0, 0.0, 0.70710678] }
+    }
+    """
+    let frame = try JSONDecoder().decode(RobotStateFrame.self, from: Data(json.utf8))
+    let odom = try #require(frame.odom)
+    expectNoDifference(odom.x, 0.42)
+    expectNoDifference(odom.y, -0.18)
+    expectNoDifference(abs(odom.yawDegrees - 90.0) < 0.001, true)
+    expectNoDifference(abs((frame.headingRadians ?? 0) - .pi / 2.0) < 0.001, true)
+
+    let origin = OdomTelemetry(position: [0.0, 0.0, 0.116], yaw: 0)
+    expectNoDifference(abs(odom.planarDistance(from: origin) - hypot(0.42, -0.18)) < 1e-9, true)
+
+    // IMU quaternion fallback when odom is absent
+    let imuOnly = RobotStateFrame(imu: ImuTelemetry(quat: [0.70710678, 0, 0, -0.70710678]))
+    expectNoDifference(abs((imuOnly.headingRadians ?? 0) - (-.pi / 2.0)) < 0.001, true)
+
+    // Wrapped angular delta across +/- pi seam (+170 deg -> -170 deg = +20 deg)
+    let start = 170.0 * .pi / 180.0
+    let end = -170.0 * .pi / 180.0
+    let deltaDeg = DuckGeometry.angularDeltaRadians(from: start, to: end) * 180.0 / .pi
+    expectNoDifference(abs(deltaDeg - 20.0) < 0.001, true)
+  }
 }

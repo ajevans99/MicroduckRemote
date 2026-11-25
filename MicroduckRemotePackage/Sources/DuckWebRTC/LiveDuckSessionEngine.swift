@@ -1269,6 +1269,25 @@ extension DuckSessionClient: DependencyKey {
           }
         )
       },
+      performMotion: { goal in
+        @Dependency(\.continuousClock) var clock
+        return try await DuckClosedLoopMotionExecutor.execute(
+          goal: goal,
+          clock: clock,
+          currentSnapshot: {
+            await LiveDuckSessionEngine.shared.currentSnapshot()
+          },
+          subscribeTof: { @MainActor in
+            let engine = LiveDuckSessionEngine.shared
+            _ = try? await engine.callRPC("tof.stream", params: EmptyParams(), quiet: true) as IntentResult
+          },
+          sendMove: { move in
+            await MainActor.run {
+              LiveDuckSessionEngine.shared.sendFireAndForget("robot.move", params: move)
+            }
+          }
+        )
+      },
       capturePhoto: { @MainActor in
         let engine = LiveDuckSessionEngine.shared
         let videoInfo = engine.currentSnapshot().videoInfo

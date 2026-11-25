@@ -17,9 +17,13 @@ Use this guidance whenever the user asks Microduck to move, walk, back up, turn 
 
 ## Plan multi-leg movements
 
-- Break compound paths like "walk forward, turn around, and come back" into sequential bounded move calls.
-- Estimate rotations from full-speed turn timing: roughly 1 second turns about 90 degrees, and roughly 2.1 seconds turns about 180 degrees.
-- Prefer moderate speed (around 60%) for indoor steps unless the user asks for fast or slow movement.
+- Prefer **real-world, sensor-terminated tools** over raw timed steps:
+  - Use `WalkDuckDistanceIntent` for walking or sidestepping real distances (meters or feet: 1 ft ≈ 0.30 m; "a little bit" ≈ 0.25 m, "a step" ≈ 0.4 m, "across the room" ≈ 1.5 m).
+  - Use `TurnDuckAngleIntent` for exact turns (90° for a quarter turn, 180° to turn around, 45° for a slight pivot).
+  - Use `ApproachWithDuckIntent` when the user says "walk up to the wall/couch/ball" (`.approach`, e.g. 25–35 cm) or "back up until you have room" (`.backUpUntilClear`, e.g. 60 cm).
+  - Only use `MoveDuckStepIntent` when the user specifically asks for a duration in seconds.
+- Break compound paths like "walk forward half a meter, turn around, and come back" into sequential closed-loop calls.
+- Prefer moderate speed (around 60–65% for walking, 80% for turning) indoors unless the user asks for fast or slow movement.
 - Keep obstacle detection enabled for forward movement unless the user explicitly asks to ignore obstacles or push something like a ball.
 
 ## Handle early stops

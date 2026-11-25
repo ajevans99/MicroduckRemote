@@ -269,7 +269,8 @@ public struct DuckSessionSnapshot: Equatable, Sendable {
         safety: SafetyTelemetry(fallen: false, pickedUp: false, limp: false),
         controlLoop: LoopTelemetry(hz: 50.0, missed: 0),
         joints: [0.01, -0.04, 0.52, -1.04, 0.51, 0.12, -0.08, 0.02, 0.0, 0.0, -0.01, 0.04, -0.52, 1.04, -0.51],
-        targets: [0.0, -0.05, 0.50, -1.02, 0.50, 0.12, -0.08, 0.0, 0.0, 0.0, 0.0, 0.05, -0.50, 1.02, -0.50]
+        targets: [0.0, -0.05, 0.50, -1.02, 0.50, 0.12, -0.08, 0.0, 0.0, 0.0, 0.0, 0.05, -0.50, 1.02, -0.50],
+        odom: OdomTelemetry(position: [0.15, 0.20, 0.116], yaw: 0.65)
       ),
       loopHistory: samples,
       health: RobotHealthResult(
@@ -347,6 +348,7 @@ public struct DuckSessionClient: Sendable {
   public var ensureConnected: @Sendable (Duration) async throws -> DuckIdentity
   public var setForegroundActive: @Sendable (Bool) async -> Void
   public var performMoveStep: @Sendable (DuckMoveStepRequest) async throws -> DuckMoveStepResult
+  public var performMotion: @Sendable (DuckMotionGoal) async throws -> DuckMotionResult
   public var capturePhoto: @Sendable () async throws -> DuckCapturedFrame
 
   public init(
@@ -397,6 +399,48 @@ public struct DuckSessionClient: Sendable {
         stopReason: .completed
       )
     },
+    performMotion: @escaping @Sendable (DuckMotionGoal) async throws -> DuckMotionResult = { goal in
+      switch goal {
+      case let .moveDistance(_, meters, _, _, _, _):
+        DuckMotionResult(
+          goal: goal,
+          stopReason: .reachedTarget,
+          elapsedSeconds: max(0.3, meters / 0.2),
+          distanceTraveledMeters: meters,
+          usedClosedLoopFeedback: true,
+          pulsesSent: max(1, Int((meters / 0.02).rounded()))
+        )
+      case let .turnAngle(degrees, _, _):
+        DuckMotionResult(
+          goal: goal,
+          stopReason: .reachedTarget,
+          elapsedSeconds: max(0.3, abs(degrees) / 90.0),
+          angleTurnedDegrees: degrees,
+          usedClosedLoopFeedback: true,
+          pulsesSent: max(1, Int((abs(degrees) / 9.0).rounded()))
+        )
+      case let .approachObstacle(targetClearanceMm, _, _):
+        DuckMotionResult(
+          goal: goal,
+          stopReason: .reachedTarget,
+          elapsedSeconds: 1.0,
+          distanceTraveledMeters: 0.25,
+          finalFrontClearanceMm: targetClearanceMm,
+          usedClosedLoopFeedback: true,
+          pulsesSent: 10
+        )
+      case let .backUpUntilClear(targetClearanceMm, _, _):
+        DuckMotionResult(
+          goal: goal,
+          stopReason: .reachedTarget,
+          elapsedSeconds: 0.8,
+          distanceTraveledMeters: 0.2,
+          finalFrontClearanceMm: targetClearanceMm,
+          usedClosedLoopFeedback: true,
+          pulsesSent: 8
+        )
+      }
+    },
     capturePhoto: @escaping @Sendable () async throws -> DuckCapturedFrame = {
       DuckCapturedFrame(jpegData: Data([0xFF, 0xD8, 0xFF, 0xD9]), width: 360, height: 640, capturedAt: Date(timeIntervalSince1970: 1_795_150_000))
     }
@@ -435,6 +479,7 @@ public struct DuckSessionClient: Sendable {
     self.ensureConnected = ensureConnected
     self.setForegroundActive = setForegroundActive
     self.performMoveStep = performMoveStep
+    self.performMotion = performMotion
     self.capturePhoto = capturePhoto
   }
 }

@@ -175,4 +175,33 @@ import Testing
       expectNoDifference(thereminToggles.value, [true])
     }
   }
+
+  @Test @MainActor func quickMotionDispatchesClosedLoopGoalAndInlineWingmanOpensPanel() async throws {
+    let goals = LockIsolated<[DuckMotionGoal]>([])
+
+    try await withDependencies {
+      var session = DuckSessionClient.previewValue
+      session.performMotion = { goal in
+        goals.withValue { $0.append(goal) }
+        return DuckMotionResult(goal: goal, stopReason: .reachedTarget, elapsedSeconds: 0.4, angleTurnedDegrees: 90)
+      }
+      $0.duckSession = session
+      $0.haptics = .previewValue
+    } operation: {
+      let model = CockpitModel()
+      model.snapshot = .previewConnected
+
+      model.quickMotionButtonTapped(label: "↺ 90°", goal: .turnAngle(degrees: 90, speedPercent: 85))
+      for _ in 0..<30 where model.activeQuickMotionLabel != nil {
+        try await Task.sleep(for: .milliseconds(10))
+      }
+      expectNoDifference(goals.value, [.turnAngle(degrees: 90, speedPercent: 85)])
+
+      model.showWingmanInspector = false
+      model.inlineWingmanPrompt = "Scout ahead"
+      model.inlineWingmanSubmitted(isWideLayout: true)
+      expectNoDifference(model.showWingmanInspector, true)
+      expectNoDifference(model.inlineWingmanPrompt, "")
+    }
+  }
 }

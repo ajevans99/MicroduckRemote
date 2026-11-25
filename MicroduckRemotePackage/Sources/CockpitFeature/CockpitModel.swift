@@ -5,6 +5,7 @@ import DuckProtocol
 import Foundation
 import IssueReporting
 import Observation
+import WingmanFeature
 
 @Observable
 @MainActor
@@ -39,8 +40,16 @@ public final class CockpitModel {
   public var isGazeClamped = false
 
   public var showTofOverlay = false
+  public var showCompassHUD = true
   public var showSoundDrawer = false
   public var showExpressiveDrawer = false
+  public var showManualPads = false
+  public var showWingmanInspector = true
+  public var showWingmanSheet = false
+  public var inlineWingmanPrompt = ""
+  public var wingmanModel = WingmanModel()
+  public var odomTrail: [OdomBreadcrumb] = []
+  public var activeQuickMotionLabel: String?
   public var activeSkillName: String?
   public var isHoldingWheee = false
   public var isHoldingChomp = false
@@ -56,6 +65,8 @@ public final class CockpitModel {
   public var alert: AlertDestination?
 
   @ObservationIgnored private var chompTick = 0
+  @ObservationIgnored private var didSubscribeTofForConnection = false
+  @ObservationIgnored private var quickMotionTask: Task<Void, Never>?
 
   public var onConnectionPillTapped: () -> Void
 
@@ -106,6 +117,7 @@ public final class CockpitModel {
 
   public func task() async {
     snapshot = await duckSession.currentSnapshot()
+    await syncTelemetryForSnapshot(snapshot)
     async let snapshotsLoop: Void = observeSnapshots()
     async let gamepadLoop: Void = observeGamepad()
     async let intentLoop: Void = runIntentHeartbeat()
@@ -115,6 +127,32 @@ public final class CockpitModel {
   private func observeSnapshots() async {
     for await updated in duckSession.snapshots() {
       snapshot = updated
+      await syncTelemetryForSnapshot(updated)
+    }
+  }
+
+  private func syncTelemetryForSnapshot(_ updated: DuckSessionSnapshot) async {
+    if updated.controlOpen {
+      if !didSubscribeTofForConnection {
+        didSubscribeTofForConnection = true
+        await duckSession.subscribeTof()
+      }
+    } else {
+      didSubscribeTofForConnection = false
+    }
+
+    if let odom = updated.latestState?.odom {
+      let point = OdomBreadcrumb(x: odom.x, y: odom.y)
+      if let last = odomTrail.last {
+        if hypot(point.x - last.x, point.y - last.y) >= 0.025 {
+          odomTrail.append(point)
+          if odomTrail.count > 80 {
+            odomTrail.removeFirst(odomTrail.count - 80)
+          }
+        }
+      } else {
+        odomTrail = [point]
+      }
     }
   }
 
@@ -252,6 +290,12 @@ public final class CockpitModel {
 
   public func stopButtonTapped() async {
     haptics.impactMedium()
+    quickMotionTask?.cancel()
+    quickMotionTask = nil
+    activeQuickMotionLabel = nil
+    if wingmanModel.isRunning || wingmanModel.isExecutingPlan {
+      await wingmanModel.stopButtonTapped()
+    }
     leftStickX = 0
     leftStickY = 0
     rightStickX = 0
@@ -332,6 +376,66 @@ public final class CockpitModel {
     showExpressiveDrawer.toggle()
     if showExpressiveDrawer {
       showSoundDrawer = false
+    }
+  }
+
+  public func wingmanButtonTapped(isWideLayout: Bool = false) {
+    haptics.selectionChanged()
+    if isWideLayout {
+      showWingmanInspector.toggle()
+    } else {
+      showWingmanSheet = true
+    }
+  }
+
+  public func inlineWingmanSubmitted(isWideLayout: Bool) {
+    let trimmed = inlineWingmanPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    inlineWingmanPrompt = ""
+    wingmanModel.promptText = trimmed
+    if isWideLayout {
+      showWingmanInspector = true
+    } else {
+      showWingmanSheet = true
+    }
+    wingmanModel.runButtonTapped()
+  }
+
+  public func manualPadsToggleTapped() {
+    haptics.selectionChanged()
+    showManualPads.toggle()
+  }
+
+  public func compassHUDToggleTapped() {
+    haptics.selectionChanged()
+    showCompassHUD.toggle()
+  }
+
+  public func resetOdomTrailTapped() {
+    haptics.selectionChanged()
+    if let odom = snapshot.latestState?.odom {
+      odomTrail = [OdomBreadcrumb(x: odom.x, y: odom.y)]
+    } else {
+      odomTrail = []
+    }
+  }
+
+  public func quickMotionButtonTapped(label: String, goal: DuckMotionGoal) {
+    guard snapshot.controlOpen, activeQuickMotionLabel == nil else { return }
+    haptics.impactMedium()
+    activeQuickMotionLabel = label
+    quickMotionTask?.cancel()
+    quickMotionTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        _ = try await self.duckSession.performMotion(goal)
+        self.haptics.success()
+      } catch is CancellationError {
+        // Cancelled cleanly via Stop button.
+      } catch {
+        self.alert = .errorMessage(error.localizedDescription)
+      }
+      self.activeQuickMotionLabel = nil
     }
   }
 

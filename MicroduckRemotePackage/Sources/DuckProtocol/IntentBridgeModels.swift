@@ -109,6 +109,94 @@ public struct DuckMoveStepResult: Codable, Equatable, Sendable {
   }
 }
 
+public enum DuckLinearDirection: String, Codable, Equatable, Hashable, CaseIterable, Sendable {
+  case forward
+  case backward
+  case strafeLeft
+  case strafeRight
+
+  public var spokenLabel: String {
+    switch self {
+    case .forward: "forward"
+    case .backward: "backward"
+    case .strafeLeft: "left"
+    case .strafeRight: "right"
+    }
+  }
+}
+
+/// Real-world, sensor-terminated motion goal driven by contact odometry (`odom`) and 8×8 ToF depth.
+@CasePathable
+@dynamicMemberLookup
+public enum DuckMotionGoal: Codable, Equatable, Sendable {
+  case moveDistance(
+    direction: DuckLinearDirection,
+    meters: Double,
+    speedPercent: Double = 65.0,
+    stopOnObstacle: Bool = true,
+    minObstacleDistanceMm: Int = DuckConstants.defaultMinObstacleDistanceMm,
+    timeoutSeconds: Double = 12.0
+  )
+  /// Positive `degrees` turns left (counterclockwise), negative turns right (clockwise).
+  case turnAngle(
+    degrees: Double,
+    speedPercent: Double = 80.0,
+    timeoutSeconds: Double = 8.0
+  )
+  /// Walks forward until the forward 8×8 ToF sensor reads `<= targetClearanceMm`.
+  case approachObstacle(
+    targetClearanceMm: Int = 300,
+    speedPercent: Double = 55.0,
+    timeoutSeconds: Double = 10.0
+  )
+  /// Walks backward until the forward 8×8 ToF sensor reads `>= targetClearanceMm`.
+  case backUpUntilClear(
+    targetClearanceMm: Int = 600,
+    speedPercent: Double = 60.0,
+    timeoutSeconds: Double = 8.0
+  )
+}
+
+public struct DuckMotionResult: Codable, Equatable, Sendable {
+  @CasePathable
+  @dynamicMemberLookup
+  public enum StopReason: Codable, Equatable, Sendable {
+    case reachedTarget
+    case stoppedForObstacle(distanceMm: Int)
+    case timedOut
+    case interruptedBySafety(String)
+  }
+
+  public var goal: DuckMotionGoal
+  public var stopReason: StopReason
+  public var elapsedSeconds: Double
+  public var distanceTraveledMeters: Double
+  public var angleTurnedDegrees: Double
+  public var finalFrontClearanceMm: Int?
+  public var usedClosedLoopFeedback: Bool
+  public var pulsesSent: Int
+
+  public init(
+    goal: DuckMotionGoal,
+    stopReason: StopReason,
+    elapsedSeconds: Double,
+    distanceTraveledMeters: Double = 0,
+    angleTurnedDegrees: Double = 0,
+    finalFrontClearanceMm: Int? = nil,
+    usedClosedLoopFeedback: Bool = true,
+    pulsesSent: Int = 0
+  ) {
+    self.goal = goal
+    self.stopReason = stopReason
+    self.elapsedSeconds = elapsedSeconds
+    self.distanceTraveledMeters = distanceTraveledMeters
+    self.angleTurnedDegrees = angleTurnedDegrees
+    self.finalFrontClearanceMm = finalFrontClearanceMm
+    self.usedClosedLoopFeedback = usedClosedLoopFeedback
+    self.pulsesSent = pulsesSent
+  }
+}
+
 public struct DuckCapturedFrame: Equatable, Sendable {
   public var jpegData: Data
   public var width: Int
